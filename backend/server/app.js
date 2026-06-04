@@ -27,6 +27,7 @@ app.disable('x-powered-by');
 app.use(
   cors({
     origin(origin, callback) {
+      console.log('Incoming origin:', origin);
       if (!origin || config.allowedOrigins.includes(origin)) {
         return callback(null, true);
       }

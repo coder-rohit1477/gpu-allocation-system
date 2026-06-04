@@ -20,6 +20,8 @@ const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'http://localhost:5173,ht
   .map((o) => o.trim())
   .filter(Boolean);
 
+console.log('Allowed origins:', allowedOrigins);
+
 module.exports = {
   allowedOrigins,
   jwtSecret:            process.env.JWT_SECRET.trim(),
