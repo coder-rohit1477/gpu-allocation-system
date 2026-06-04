@@ -75,103 +75,51 @@ This system addresses those issues by making allocation, notification, auditing,
 
 ```mermaid
 flowchart TB
-  U[Browser / User]
-
-  subgraph FE[Frontend App]
-    M[src/main.jsx]
-    A[src/App.jsx]
-    P[AuthProvider]
-    X[Axios client + interceptors]
-    L[PortalLayout]
-    S[StudentDashboard]
-    F[FacultyDashboard]
-    D[AdminDashboard]
-  end
-
-  subgraph BE[Backend API]
-    APP[backend/server/app.js]
-    R[Routes]
-    C[Controllers]
-    MW[Auth Middleware]
-    AL[Audit Log Service]
-    RT[Socket.IO Server]
-  end
-
-  subgraph DB[MongoDB]
-    UCOL[User]
-    GRCOL[GpuResource]
-    GQCOL[GpuRequest]
-    ACOL[AuditLog]
-  end
-
-  SIO[Socket.IO Client]
-  DC[Docker Compose]
-
-  U --> FE
-  M --> A --> P
-  A --> X
-  A --> L
-  L --> S
-  L --> F
-  L --> D
-
-  FE -->|HTTP /api/v1| BE
-  FE -->|Socket.IO + JWT| SIO
-  SIO --> RT
-
-  APP --> R
-  R --> C
-  R --> MW
-  C --> DB
-  MW --> DB
-  C --> AL
-  AL --> ACOL
-  RT --> DB
-
-  DC --> FE
-  DC --> BE
-  DC --> DB
+  User[User] --> Frontend[Frontend App]
+  Frontend --> Backend[Backend API]
+  Backend --> Database[MongoDB]
+  Backend --> Realtime[Socket IO]
+  Backend --> Docs[Swagger Docs]
 ```
+
+The application is organized into three main layers:
+
+- Frontend
+  - React app with role-specific dashboards
+  - Axios client with auth interceptors
+  - Socket.IO client for realtime updates
+
+- Backend
+  - Express API under `backend/server`
+  - Route, controller, middleware, and service layers
+  - Swagger/OpenAPI docs at `/api-docs`
+  - Socket.IO server for targeted notifications
+
+- Data and runtime
+  - MongoDB stores users, GPU resources, requests, and audit logs
+  - Docker Compose can run the full stack together
 
 ## Request Workflow
 
 ```mermaid
 flowchart LR
-  STUDENT[Student]
-  SD[Student Dashboard]
-  CREATE[POST /api/v1/gpu-requests]
-  CR[createGpuRequest]
-  GQR[(GpuRequest collection)]
-  LOG1[AuditLogService: REQUEST_CREATED]
-
-  FACULTY[Faculty]
-  FD[Faculty Dashboard]
-  APPROVE[PATCH /api/v1/gpu-requests/:id/approve]
-  REJECT[PATCH /api/v1/gpu-requests/:id/reject]
-  AR[approveRequest]
-  RR[rejectRequest]
-  GR[(GpuResource collection)]
-  GRQ[(GpuRequest collection)]
-  OVERLAP{Overlap / VRAM valid?}
-  LOG2[AuditLogService: REQUEST_APPROVED]
-  LOG3[AuditLogService: GPU_ALLOCATED]
-  LOG4[AuditLogService: REQUEST_REJECTED]
-  EMIT[Socket.IO emitToUser]
-  STUDENTUPDATE[Student receives status update]
-
-  STUDENT --> SD --> CREATE --> CR --> GQR --> LOG1
-
-  FACULTY --> FD --> APPROVE --> AR
-  FD --> REJECT --> RR
-
-  AR --> GRQ
-  AR --> GR
-  AR --> OVERLAP
-  OVERLAP -- yes --> GR
-  OVERLAP -- yes --> GRQ
-  OVERLAP -- no --> LOG2 --> LOG3 --> EMIT --> STUDENTUPDATE
-  RR --> GRQ --> LOG4 --> EMIT
+  Student[Student] --> Submit[Submit Request]
+  Submit --> Backend[Backend API]
+  Backend --> Review[Faculty Review]
+  Review --> Approve[Approve]
+  Review --> Reject[Reject]
+  Approve --> Notify[Socket IO Update]
+  Reject --> Notify
+  Notify --> StudentUpdate[Student Update]
 ```
+
+Request handling follows a simple flow:
+
+- Student submits a GPU request from the frontend
+- Backend validates and stores the request
+- Faculty approves or rejects the request
+- Approval checks prevent overlapping GPU allocations
+- The backend emits a targeted Socket.IO update to the student
 
 ## Conflict Detection
 
@@ -454,37 +402,17 @@ docker compose exec backend node scripts/seed.js
 ![Swagger](docs/images/swagger-api-overview.png)
 
 
-### Placeholders
-
-- Login page
-- Student dashboard
-- Faculty approval queue
-- Admin dashboard
-- Swagger UI
-- Health endpoint responses
-
-Recommended future additions:
-
-- `frontend/public/screenshots/login.png`
-- `frontend/public/screenshots/student-dashboard.png`
-- `frontend/public/screenshots/faculty-queue.png`
-- `frontend/public/screenshots/admin-dashboard.png`
-
 ## Future Improvements
 
 - Add frontend end-to-end tests
 - Add audit log filtering and export
 - Add richer analytics visualizations
-- Add notification history in the UI
 - Add deployment notes for cloud hosting
-- Add screenshots and a short product walkthrough
-- Add linting gates to CI
 
-## Resume-Worthy Achievements
+## Project Highlights
 
 - Built a role-based GPU allocation platform with JWT auth, RBAC, realtime notifications, and audit logging.
 - Implemented conflict-safe GPU approval logic that prevents overlapping allocations and returns deterministic HTTP `409` responses.
 - Added production-style health monitoring endpoints and a Swagger/OpenAPI documentation surface for operational readiness.
 - Created an integration-first backend test suite using MongoMemoryServer, Supertest, and Socket.IO client coverage.
 - Established CI automation with GitHub Actions to validate backend tests and frontend build integrity on every push and pull request.
-
