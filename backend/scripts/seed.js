@@ -19,9 +19,9 @@ if (!process.env.MONGODB_URI) {
 // ─── Seed data ────────────────────────────────────────────────────────────────
 
 const USERS = [
-  { username: 'adminC',   password: 'Admin@1234',   role: 'ADMIN'   },
-  { username: 'facultyB', password: 'Faculty@1234', role: 'FACULTY' },
-  { username: 'studentA', password: 'Student@1234', role: 'STUDENT' },
+  { username: 'admin',   password: 'Admin@1234',   role: 'ADMIN'   },
+  { username: 'faculty', password: 'Faculty@1234', role: 'FACULTY' },
+  { username: 'student', password: 'Student@1234', role: 'STUDENT' },
 ];
 
 const GPUS = [
