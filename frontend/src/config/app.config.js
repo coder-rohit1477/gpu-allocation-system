@@ -3,5 +3,10 @@ const normalizeValue = (value, fallback) => {
   return normalizedValue || fallback;
 };
 
-export const API_BASE_PATH = normalizeValue(import.meta.env.VITE_API_BASE_PATH, '/api');
+const normalizeApiBasePath = (value, fallback) => {
+  const normalizedValue = normalizeValue(value, fallback);
+  return normalizedValue.replace(/\/v1\/?$/, '');
+};
+
+export const API_BASE_PATH = normalizeApiBasePath(import.meta.env.VITE_API_BASE_PATH, '/api');
 export const AUTH_TOKEN_STORAGE_KEY = 'token';
