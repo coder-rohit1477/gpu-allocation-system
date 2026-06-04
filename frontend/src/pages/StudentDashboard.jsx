@@ -5,8 +5,8 @@ import StatCard       from '../components/StatCard';
 import StatusBadge    from '../components/StatusBadge';
 import Modal          from '../components/Modal';
 import Icon           from '../components/Icon';
-import requestService from '../services/request.service';
-import gpuService     from '../services/gpu.service';
+import requestService from '../services/request/service';
+import gpuService     from '../services/gpu/service';
 import { useAuth }    from '../hooks/useAuth';
 import { toast }      from 'sonner';
 

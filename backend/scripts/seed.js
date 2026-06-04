@@ -8,8 +8,8 @@
 
 require('dotenv').config();
 const mongoose    = require('mongoose');
-const User        = require('../server/models/user.model');
-const GpuResource = require('../server/models/gpu-resource.model');
+const User        = require('../server/models/user/model');
+const GpuResource = require('../server/models/gpu-resource/model');
 
 if (!process.env.MONGODB_URI) {
   console.error('❌ MONGODB_URI is not set in .env');

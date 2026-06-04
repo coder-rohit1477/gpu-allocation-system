@@ -2,8 +2,8 @@ import { useEffect, lazy, Suspense } from 'react';
 import { Routes, Route, Navigate }   from 'react-router-dom';
 import { useAuth }                   from './hooks/useAuth';
 import { setupApiInterceptors }      from './api/interceptors';
+import ErrorBoundary                 from './components/ErrorBoundary';
 
-// Lazy-load heavy dashboard pages
 const Login            = lazy(() => import('./pages/Login'));
 const AdminDashboard   = lazy(() => import('./pages/AdminDashboard'));
 const FacultyDashboard = lazy(() => import('./pages/FacultyDashboard'));
@@ -13,7 +13,6 @@ const StudentDashboard = lazy(() => import('./pages/StudentDashboard'));
 
 function ProtectedRoute({ children }) {
   const { isAuthenticated, loading } = useAuth();
-  // While auth state is being determined from localStorage, render nothing
   if (loading) return null;
   return isAuthenticated ? children : <Navigate to="/login" replace />;
 }
@@ -21,13 +20,11 @@ function ProtectedRoute({ children }) {
 function RoleGuard({ children, allowedRoles }) {
   const { user } = useAuth();
   if (user && !allowedRoles.includes(user.role)) {
-    // User authenticated but wrong role — send to their own dashboard
     return <Navigate to="/dashboard" replace />;
   }
   return children;
 }
 
-/** Dispatches authenticated users to their role-specific root. */
 function RoleRedirect() {
   const { user } = useAuth();
   switch (user?.role) {
@@ -38,7 +35,6 @@ function RoleRedirect() {
   }
 }
 
-// Full-page loading spinner shown during Suspense
 const PageLoader = () => (
   <div className="loading-screen">
     <div className="spinner" />
@@ -67,7 +63,7 @@ export default function App() {
           element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <Login />}
         />
 
-        {/* ── Role dispatcher: /dashboard → role root ── */}
+        {/* ── Role dispatcher ── */}
         <Route
           path="/dashboard"
           element={
@@ -77,13 +73,15 @@ export default function App() {
           }
         />
 
-        {/* ── Admin (all sub-routes handled internally via nested <Routes>) ── */}
+        {/* ── Admin ── */}
         <Route
           path="/admin/*"
           element={
             <ProtectedRoute>
               <RoleGuard allowedRoles={['ADMIN']}>
-                <AdminDashboard />
+                <ErrorBoundary>
+                  <AdminDashboard />
+                </ErrorBoundary>
               </RoleGuard>
             </ProtectedRoute>
           }
@@ -95,7 +93,9 @@ export default function App() {
           element={
             <ProtectedRoute>
               <RoleGuard allowedRoles={['FACULTY']}>
-                <FacultyDashboard />
+                <ErrorBoundary>
+                  <FacultyDashboard />
+                </ErrorBoundary>
               </RoleGuard>
             </ProtectedRoute>
           }
@@ -107,19 +107,18 @@ export default function App() {
           element={
             <ProtectedRoute>
               <RoleGuard allowedRoles={['STUDENT']}>
-                <StudentDashboard />
+                <ErrorBoundary>
+                  <StudentDashboard />
+                </ErrorBoundary>
               </RoleGuard>
             </ProtectedRoute>
           }
         />
 
-        {/* ── Root: redirect based on auth state ── */}
         <Route
           path="/"
           element={<Navigate to={isAuthenticated ? '/dashboard' : '/login'} replace />}
         />
-
-        {/* ── Catch-all 404 ── */}
         <Route
           path="*"
           element={<Navigate to={isAuthenticated ? '/dashboard' : '/login'} replace />}

@@ -6,8 +6,8 @@ import StatusBadge    from '../components/StatusBadge';
 import Modal          from '../components/Modal';
 import Icon           from '../components/Icon';
 import api            from '../api/client';
-import gpuService     from '../services/gpu.service';
-import requestService from '../services/request.service';
+import gpuService     from '../services/gpu/service';
+import requestService from '../services/request/service';
 import { toast }      from 'sonner';
 
 // ─── GPU Management ───────────────────────────────────────────────────────────

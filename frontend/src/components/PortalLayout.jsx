@@ -105,10 +105,22 @@ function Sidebar({ open, onClose }) {
               <div className="sidebar-urole">{role}</div>
             </div>
           </div>
-          <button className="btn-logout" onClick={logout}>
-            <Icon name="logout" size={14} />
-            Sign out
-          </button>
+          <div style={{ padding: '0 8px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <a
+              href="/GPU_PBL_Report.pdf"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn-logout"
+              style={{ textDecoration: 'none', color: 'rgb(var(--text-muted))', fontSize: 13 }}
+            >
+              <span style={{ fontSize: 15, width: 14, textAlign: 'center' }}>📄</span>
+              View Report
+            </a>
+            <button className="btn-logout" onClick={logout}>
+              <Icon name="logout" size={14} />
+              Sign out
+            </button>
+          </div>
         </div>
       </aside>
     </>
