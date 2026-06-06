@@ -9,6 +9,13 @@ const connectDB = async () => {
 
     const conn = await mongoose.connect(config.mongoUri);
     
+    console.log("DB NAME:", mongoose.connection.name);
+    const users = await mongoose.connection.collection("users").find({}).toArray();
+    console.log(
+      "USERS IN DATABASE:",
+      users.map(u => u.username)
+    );
+
     console.log(`[db] MongoDB Connected: ${conn.connection.host}`);
     console.log(`[db] Database Name: ${conn.connection.name}`);
 

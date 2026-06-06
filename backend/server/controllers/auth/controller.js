@@ -87,6 +87,12 @@ exports.login = catchAsync(async (req, res, next) => {
     return next(new AppError('Please provide both username and password.', 400));
   }
 
+  const count = await User.countDocuments();
+  const allUsers = await User.find({}, 'username');
+
+  console.log('USER COUNT:', count);
+  console.log('ALL USERS:', allUsers.map(u => u.username));
+
   const user = await User.findOne({ username }).select('+password');
   
   if (!user) {
