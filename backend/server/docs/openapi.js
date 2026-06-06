@@ -168,9 +168,9 @@ module.exports = {
         type: 'object',
         required: ['username', 'password', 'role'],
         properties: {
-          username: { type: 'string', example: 'facultyB' },
-          password: { type: 'string', example: 'Faculty@1234' },
-          role: { type: 'string', enum: ['STUDENT', 'FACULTY', 'ADMIN'], example: 'FACULTY' },
+          username: { type: 'string', example: 'adminC' },
+          password: { type: 'string', example: 'Admin@1234' },
+          role: { type: 'string', enum: ['STUDENT', 'FACULTY', 'ADMIN'], example: 'ADMIN' },
         },
       },
       AdminUserResponse: {

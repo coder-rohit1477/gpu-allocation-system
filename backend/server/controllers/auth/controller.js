@@ -80,14 +80,29 @@ exports.login = catchAsync(async (req, res, next) => {
   const username = typeof req.body.username === 'string' ? req.body.username.trim() : '';
   const password = typeof req.body.password === 'string' ? req.body.password        : '';
 
+  console.log(`[auth] Login attempt for username: "${username}"`);
+
   if (!username || !password) {
+    console.log('[auth] Login failed: Missing username or password');
     return next(new AppError('Please provide both username and password.', 400));
   }
 
   const user = await User.findOne({ username }).select('+password');
-  if (!user || !(await user.correctPassword(password, user.password))) {
+  
+  if (!user) {
+    console.log(`[auth] Login failed: User not found for username: "${username}"`);
     return next(new AppError('Incorrect username or password.', 401));
   }
+
+  const isPasswordCorrect = await user.correctPassword(password, user.password);
+  console.log(`[auth] Password match for "${username}": ${isPasswordCorrect}`);
+
+  if (!isPasswordCorrect) {
+    console.log(`[auth] Login failed: Incorrect password for username: "${username}"`);
+    return next(new AppError('Incorrect username or password.', 401));
+  }
+
+  console.log(`[auth] Login successful for user: "${username}" (ID: ${user._id})`);
 
   await auditLogService.createLog(user._id, 'USER_LOGIN', {
     username: user.username,

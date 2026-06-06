@@ -156,9 +156,9 @@ export default function Login() {
             <>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
                 {[
-                  { role: 'ADMIN',   user: 'admin',   pass: 'Admin@1234'   },
-                  { role: 'FACULTY', user: 'faculty', pass: 'Faculty@1234' },
-                  { role: 'STUDENT', user: 'student', pass: 'Student@1234' },
+                  { role: 'ADMIN',   user: 'adminC',   pass: 'Admin@1234'   },
+                  { role: 'FACULTY', user: 'facultyB', pass: 'Faculty@1234' },
+                  { role: 'STUDENT', user: 'studentA', pass: 'Student@1234' },
                 ].map((d) => (
                   <button
                     key={d.role}

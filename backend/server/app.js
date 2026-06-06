@@ -18,6 +18,8 @@ const globalErrorHandler = require('./middleware/error/middleware');
 
 const app = express();
 
+app.set('trust proxy', 1);
+
 const getMongoStatus = () =>
   (mongoose.connection.readyState === 1 ? 'connected' : 'disconnected');
 
