@@ -80,8 +80,6 @@ exports.login = catchAsync(async (req, res, next) => {
   const username = typeof req.body.username === 'string' ? req.body.username.trim() : '';
   const password = typeof req.body.password === 'string' ? req.body.password        : '';
 
-  console.log(`[auth] Login attempt for username: "${username}"`);
-
   if (!username || !password) {
     return next(new AppError('Please provide both username and password.', 400));
   }

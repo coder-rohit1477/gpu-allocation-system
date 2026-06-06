@@ -19,7 +19,7 @@ const userRef = {
   type: 'object',
   properties: {
     id: { type: 'string', example: '64f1f3b2b9a5e1c123456789' },
-    username: { type: 'string', example: 'studentA' },
+    username: { type: 'string', example: 'student' },
     role: { type: 'string', example: 'STUDENT' },
   },
 };
@@ -65,7 +65,7 @@ module.exports = {
         type: 'object',
         required: ['username', 'password'],
         properties: {
-          username: { type: 'string', example: 'studentA' },
+          username: { type: 'string', example: 'student' },
           password: { type: 'string', example: 'Student@1234' },
         },
       },
@@ -168,7 +168,7 @@ module.exports = {
         type: 'object',
         required: ['username', 'password', 'role'],
         properties: {
-          username: { type: 'string', example: 'adminC' },
+          username: { type: 'string', example: 'admin' },
           password: { type: 'string', example: 'Admin@1234' },
           role: { type: 'string', enum: ['STUDENT', 'FACULTY', 'ADMIN'], example: 'ADMIN' },
         },
@@ -184,8 +184,8 @@ module.exports = {
                 type: 'object',
                 properties: {
                   id: { type: 'string', example: '64f1f3b2b9a5e1c123456789' },
-                  username: { type: 'string', example: 'facultyB' },
-                  role: { type: 'string', example: 'FACULTY' },
+                  username: { type: 'string', example: 'admin' },
+                  role: { type: 'string', example: 'ADMIN' },
                 },
               },
             },
