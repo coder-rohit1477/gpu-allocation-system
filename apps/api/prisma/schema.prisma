@@ -1,0 +1,310 @@
+// Phase 2 — University domain schema.
+//
+// This models the organizational hierarchy, inventory, and scheduling
+// records for the GPU Resource & Management System. No application logic
+// (auth, RBAC enforcement, booking engine, WebSockets) lives here — this
+// file only defines data shape, relationships, and constraints.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum UserRole {
+  SUPER_ADMIN
+  DEPARTMENT_ADMIN
+  LAB_ADMIN
+  FACULTY
+  STUDENT
+}
+
+// Not part of the requested enum list, but User.status needs a type and no
+// enum was specified for it — added as the smallest reasonable lifecycle
+// state set for an account (see schema-decisions notes).
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+enum LabStatus {
+  ACTIVE
+  MAINTENANCE
+  INACTIVE
+}
+
+enum GpuStatus {
+  AVAILABLE
+  BUSY
+  MAINTENANCE
+  OFFLINE
+}
+
+enum ReservationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+enum SessionStatus {
+  RUNNING
+  COMPLETED
+  TERMINATED
+}
+
+enum NotificationType {
+  INFO
+  SUCCESS
+  WARNING
+  ERROR
+}
+
+enum MaintenanceStatus {
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+}
+
+// ---------------------------------------------------------------------------
+// Organizational hierarchy
+// ---------------------------------------------------------------------------
+
+model Organization {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String
+  code      String   @unique
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  departments Department[]
+
+  @@map("organizations")
+}
+
+model Department {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @db.Uuid
+  name           String
+  code           String
+  createdAt      DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime @updatedAt @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  laboratories Laboratory[]
+  users        User[]
+
+  // Department code only has to be unique within its own organization.
+  @@unique([organizationId, code])
+  @@index([organizationId])
+  @@map("departments")
+}
+
+model Laboratory {
+  id           String    @id @default(uuid()) @db.Uuid
+  departmentId String    @db.Uuid
+  name         String
+  location     String
+  floor        String
+  status       LabStatus @default(ACTIVE)
+  createdAt    DateTime  @default(now()) @db.Timestamptz(6)
+  updatedAt    DateTime  @updatedAt @db.Timestamptz(6)
+
+  department Department @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  gpuNodes   GpuNode[]
+
+  @@unique([departmentId, name])
+  @@index([departmentId])
+  @@map("laboratories")
+}
+
+// ---------------------------------------------------------------------------
+// People
+// ---------------------------------------------------------------------------
+
+model User {
+  id           String     @id @default(uuid()) @db.Uuid
+  universityId String     @unique
+  fullName     String
+  email        String     @unique
+  role         UserRole
+  departmentId String?    @db.Uuid
+  status       UserStatus @default(ACTIVE)
+  createdAt    DateTime   @default(now()) @db.Timestamptz(6)
+  updatedAt    DateTime   @updatedAt @db.Timestamptz(6)
+
+  // SUPER_ADMIN is institution-wide, so departmentId is intentionally nullable.
+  department Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+
+  coursesTaught Course[]       @relation("CourseFaculty")
+  reservations  Reservation[]
+  notifications Notification[]
+  auditLogs     AuditLog[]     @relation("AuditActor")
+
+  @@index([departmentId])
+  @@index([role])
+  @@map("users")
+}
+
+// ---------------------------------------------------------------------------
+// Academic
+// ---------------------------------------------------------------------------
+
+model Course {
+  id         String @id @default(uuid()) @db.Uuid
+  courseCode String @unique
+  courseName String
+  semester   String
+  facultyId  String @db.Uuid
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  faculty      User          @relation("CourseFaculty", fields: [facultyId], references: [id], onDelete: Restrict)
+  reservations Reservation[]
+
+  @@index([facultyId])
+  @@map("courses")
+}
+
+// ---------------------------------------------------------------------------
+// Inventory
+// ---------------------------------------------------------------------------
+
+model GpuNode {
+  id            String    @id @default(uuid()) @db.Uuid
+  labId         String    @db.Uuid
+  hostname      String    @unique
+  gpuModel      String
+  gpuCount      Int
+  totalMemoryGB Int
+  cpuCores      Int
+  ramGB         Int
+  status        GpuStatus @default(OFFLINE)
+  lastHeartbeat DateTime? @db.Timestamptz(6)
+  createdAt     DateTime  @default(now()) @db.Timestamptz(6)
+  updatedAt     DateTime  @updatedAt @db.Timestamptz(6)
+
+  laboratory         Laboratory          @relation(fields: [labId], references: [id], onDelete: Restrict)
+  reservations       Reservation[]
+  maintenanceWindows MaintenanceWindow[]
+
+  @@index([labId])
+  @@index([status])
+  @@map("gpu_nodes")
+}
+
+// ---------------------------------------------------------------------------
+// Scheduling
+// ---------------------------------------------------------------------------
+
+model Reservation {
+  id        String            @id @default(uuid()) @db.Uuid
+  userId    String            @db.Uuid
+  gpuNodeId String            @db.Uuid
+  courseId  String?           @db.Uuid
+  startTime DateTime          @db.Timestamptz(6)
+  endTime   DateTime          @db.Timestamptz(6)
+  status    ReservationStatus @default(PENDING)
+  purpose   String
+  createdAt DateTime          @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime          @updatedAt @db.Timestamptz(6)
+
+  user               User                @relation(fields: [userId], references: [id], onDelete: Restrict)
+  gpuNode            GpuNode             @relation(fields: [gpuNodeId], references: [id], onDelete: Restrict)
+  course             Course?             @relation(fields: [courseId], references: [id], onDelete: SetNull)
+  allocationSessions AllocationSession[]
+
+  @@index([userId])
+  @@index([gpuNodeId])
+  @@index([courseId])
+  @@index([status])
+  // Supports availability/conflict lookups for a given node over a time range.
+  @@index([gpuNodeId, startTime, endTime])
+  @@map("reservations")
+}
+
+model AllocationSession {
+  id            String        @id @default(uuid()) @db.Uuid
+  reservationId String        @db.Uuid
+  startedAt     DateTime      @db.Timestamptz(6)
+  endedAt       DateTime?     @db.Timestamptz(6)
+  computeHours  Decimal?      @db.Decimal(10, 2)
+  status        SessionStatus @default(RUNNING)
+  createdAt     DateTime      @default(now()) @db.Timestamptz(6)
+  updatedAt     DateTime      @updatedAt @db.Timestamptz(6)
+
+  reservation Reservation @relation(fields: [reservationId], references: [id], onDelete: Cascade)
+
+  @@index([reservationId])
+  @@index([status])
+  @@map("allocation_sessions")
+}
+
+model MaintenanceWindow {
+  id        String            @id @default(uuid()) @db.Uuid
+  gpuNodeId String            @db.Uuid
+  title     String
+  startTime DateTime          @db.Timestamptz(6)
+  endTime   DateTime          @db.Timestamptz(6)
+  reason    String
+  status    MaintenanceStatus @default(SCHEDULED)
+  createdAt DateTime          @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime          @updatedAt @db.Timestamptz(6)
+
+  gpuNode GpuNode @relation(fields: [gpuNodeId], references: [id], onDelete: Cascade)
+
+  @@index([gpuNodeId])
+  @@index([status])
+  @@map("maintenance_windows")
+}
+
+// ---------------------------------------------------------------------------
+// Notifications & audit
+// ---------------------------------------------------------------------------
+
+model Notification {
+  id        String           @id @default(uuid()) @db.Uuid
+  userId    String           @db.Uuid
+  title     String
+  message   String
+  type      NotificationType @default(INFO)
+  isRead    Boolean          @default(false)
+  createdAt DateTime         @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime         @updatedAt @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, isRead])
+  @@map("notifications")
+}
+
+model AuditLog {
+  id           String   @id @default(uuid()) @db.Uuid
+  actorId      String?  @db.Uuid
+  action       String
+  resourceType String
+  resourceId   String
+  metadata     Json?
+  createdAt    DateTime @default(now()) @db.Timestamptz(6)
+
+  // Audit logs are append-only: no updatedAt, and the actor link is nullable
+  // with SetNull so a row survives even if the acting user is later removed.
+  actor User? @relation("AuditActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([actorId])
+  @@index([resourceType, resourceId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}

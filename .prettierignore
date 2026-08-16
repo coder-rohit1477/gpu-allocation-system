@@ -1,0 +1,10 @@
+dist
+build
+coverage
+node_modules
+generated
+pnpm-lock.yaml
+backend
+frontend
+docker-compose.legacy.yml
+*.md
