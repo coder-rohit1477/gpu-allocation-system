@@ -151,6 +151,14 @@ model User {
   notifications Notification[]
   auditLogs     AuditLog[]     @relation("AuditActor")
 
+  // Auth-specific back-relations (Phase 3). These add no columns to `users` —
+  // Prisma requires both sides of a relation to be declared, but only the
+  // owning side (the auth tables below) carries a foreign key.
+  credential              UserCredential?
+  refreshSessions         RefreshSession[]
+  passwordResetTokens     PasswordResetToken[]
+  emailVerificationTokens EmailVerificationToken[]
+
   @@index([departmentId])
   @@index([role])
   @@map("users")
@@ -307,4 +315,79 @@ model AuditLog {
   @@index([resourceType, resourceId])
   @@index([createdAt])
   @@map("audit_logs")
+}
+
+// ---------------------------------------------------------------------------
+// Authentication (Phase 3)
+//
+// These tables are intentionally separate from the `User` domain model:
+// credentials, sessions, and one-time tokens are auth-module bookkeeping,
+// not university-domain data, and keeping them apart means the domain
+// schema from Phase 2 did not need to change.
+// ---------------------------------------------------------------------------
+
+// One-to-one with User. Holds the password hash only — never the plaintext.
+model UserCredential {
+  id                String   @id @default(uuid()) @db.Uuid
+  userId            String   @unique @db.Uuid
+  passwordHash      String
+  passwordUpdatedAt DateTime @default(now()) @db.Timestamptz(6)
+  createdAt         DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt         DateTime @updatedAt @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_credentials")
+}
+
+// A rotating refresh-token session. `familyId` groups every token produced
+// by rotating from the same original login, which is what makes reuse
+// detection possible: if a token that was already rotated away is presented
+// again, the whole family is revoked (see auth.service.ts).
+model RefreshSession {
+  id                String    @id @default(uuid()) @db.Uuid
+  userId            String    @db.Uuid
+  familyId          String    @db.Uuid
+  tokenHash         String    @unique
+  userAgent         String?
+  ipAddress         String?
+  expiresAt         DateTime  @db.Timestamptz(6)
+  revokedAt         DateTime? @db.Timestamptz(6)
+  replacedByTokenId String?   @db.Uuid
+  createdAt         DateTime  @default(now()) @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([familyId])
+  @@index([userId, revokedAt])
+  @@map("refresh_sessions")
+}
+
+model PasswordResetToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @db.Uuid
+  tokenHash String    @unique
+  expiresAt DateTime  @db.Timestamptz(6)
+  usedAt    DateTime? @db.Timestamptz(6)
+  createdAt DateTime  @default(now()) @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("password_reset_tokens")
+}
+
+model EmailVerificationToken {
+  id         String    @id @default(uuid()) @db.Uuid
+  userId     String    @db.Uuid
+  tokenHash  String    @unique
+  expiresAt  DateTime  @db.Timestamptz(6)
+  verifiedAt DateTime? @db.Timestamptz(6)
+  createdAt  DateTime  @default(now()) @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("email_verification_tokens")
 }

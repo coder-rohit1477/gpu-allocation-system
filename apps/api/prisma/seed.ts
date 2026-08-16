@@ -7,8 +7,15 @@ import {
   type User,
 } from "@prisma/client";
 import { faker } from "@faker-js/faker";
+import { hashPassword } from "../src/modules/auth/password.js";
 
 const prisma = new PrismaClient();
+
+// Every seeded account gets this password — a fixed, obviously-fake dev
+// credential, never used outside local/CI seeding. There is no signup or
+// password-reset flow yet (out of Phase 3 scope), so seeding is the only
+// way to get a login-able account at all right now.
+const SEED_PASSWORD = "ChangeMe123!";
 
 // Fixed seed keeps generated names/faker-derived values stable across reseeds;
 // identity fields (universityId, email, code, hostname) are still derived
@@ -90,8 +97,20 @@ async function upsertUser(input: SeedUserInput): Promise<User> {
   });
 }
 
+async function upsertCredential(userId: string, passwordHash: string): Promise<void> {
+  await prisma.userCredential.upsert({
+    where: { userId },
+    update: { passwordHash, passwordUpdatedAt: new Date() },
+    create: { userId, passwordHash },
+  });
+}
+
 async function main(): Promise<void> {
   console.log("Seeding Manipal University Jaipur GPU platform data...");
+
+  // Hashed once and reused for every account — bcrypt is deliberately slow,
+  // and there is no reason to pay that cost 67 times for the same password.
+  const seedPasswordHash = await hashPassword(SEED_PASSWORD);
 
   const organization = await prisma.organization.upsert({
     where: { code: ORGANIZATION.code },
@@ -258,6 +277,11 @@ async function main(): Promise<void> {
     }
   }
 
+  const allUsers = [superAdmin, ...departmentAdmins, ...labAdmins, ...faculty, ...students];
+  for (const user of allUsers) {
+    await upsertCredential(user.id, seedPasswordHash);
+  }
+
   const counts = {
     organizations: await prisma.organization.count(),
     departments: await prisma.department.count(),
@@ -273,6 +297,7 @@ async function main(): Promise<void> {
   console.log(`  lab admins: ${labAdmins.length}`);
   console.log(`  faculty: ${faculty.length}`);
   console.log(`  students: ${students.length}`);
+  console.log(`  every seeded account's password: ${SEED_PASSWORD} (dev only)`);
 }
 
 main()
