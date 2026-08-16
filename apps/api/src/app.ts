@@ -5,6 +5,12 @@ import cookieParser from "cookie-parser";
 import { env } from "./config/env.js";
 import healthRouter from "./routes/health.js";
 import authRouter from "./modules/auth/auth.routes.js";
+import organizationRouter from "./modules/organization/organization.routes.js";
+import departmentRouter from "./modules/department/department.routes.js";
+import laboratoryRouter from "./modules/laboratory/laboratory.routes.js";
+import courseRouter from "./modules/course/course.routes.js";
+import gpuNodeRouter from "./modules/gpuNode/gpuNode.routes.js";
+import userRouter from "./modules/user/user.routes.js";
 
 export function createApp(): Express {
   const app = express();
@@ -17,6 +23,12 @@ export function createApp(): Express {
 
   app.use(healthRouter);
   app.use("/api/v1/auth", authRouter);
+  app.use("/api/v1/organizations", organizationRouter);
+  app.use("/api/v1/departments", departmentRouter);
+  app.use("/api/v1/laboratories", laboratoryRouter);
+  app.use("/api/v1/courses", courseRouter);
+  app.use("/api/v1/gpu-nodes", gpuNodeRouter);
+  app.use("/api/v1/users", userRouter);
 
   app.use((_req, res) => {
     res.status(404).json({ ok: false, error: { code: "NOT_FOUND", message: "Route not found" } });
