@@ -11,6 +11,8 @@ import laboratoryRouter from "./modules/laboratory/laboratory.routes.js";
 import courseRouter from "./modules/course/course.routes.js";
 import gpuNodeRouter from "./modules/gpuNode/gpuNode.routes.js";
 import userRouter from "./modules/user/user.routes.js";
+import telemetryRouter from "./modules/telemetry/telemetry.routes.js";
+import gpuNodeHealthRouter from "./modules/telemetry/gpuNodeHealth.routes.js";
 
 export function createApp(): Express {
   const app = express();
@@ -27,8 +29,13 @@ export function createApp(): Express {
   app.use("/api/v1/departments", departmentRouter);
   app.use("/api/v1/laboratories", laboratoryRouter);
   app.use("/api/v1/courses", courseRouter);
+  // Must be mounted before gpuNodeRouter: "/live" would otherwise be
+  // swallowed by the admin router's GET "/:id" (id="live"). See
+  // gpuNodeHealth.routes.ts for the full explanation.
+  app.use("/api/v1/gpu-nodes", gpuNodeHealthRouter);
   app.use("/api/v1/gpu-nodes", gpuNodeRouter);
   app.use("/api/v1/users", userRouter);
+  app.use("/api/v1/telemetry", telemetryRouter);
 
   app.use((_req, res) => {
     res.status(404).json({ ok: false, error: { code: "NOT_FOUND", message: "Route not found" } });

@@ -27,6 +27,16 @@ export const env = {
     bcryptSaltRounds: Number(process.env.BCRYPT_SALT_ROUNDS ?? 12),
     cookieDomain: process.env.COOKIE_DOMAIN,
   },
+
+  telemetry: {
+    // Shared-secret header check for node-agent telemetry ingestion
+    // (POST /telemetry/heartbeat, /telemetry/metrics). Deliberately not part
+    // of `auth` above: this is a separate, additive guard for machine-to-
+    // machine calls with no browser session, not a change to user auth.
+    ingestToken: required("TELEMETRY_INGEST_TOKEN"),
+    onlineThresholdSeconds: Number(process.env.TELEMETRY_ONLINE_THRESHOLD_SECONDS ?? 30),
+    degradedThresholdSeconds: Number(process.env.TELEMETRY_DEGRADED_THRESHOLD_SECONDS ?? 90),
+  },
 };
 
 export const isProduction = env.nodeEnv === "production";

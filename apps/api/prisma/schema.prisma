@@ -207,6 +207,12 @@ model GpuNode {
   reservations       Reservation[]
   maintenanceWindows MaintenanceWindow[]
 
+  // Telemetry (Phase 5) back-relations — add no columns to `gpu_nodes`;
+  // see healthSnapshot/metrics below. `lastHeartbeat` above (Phase 2) is
+  // what telemetry ingestion actually writes to.
+  healthSnapshot GpuHealthSnapshot?
+  metrics        GpuMetric[]
+
   @@index([labId])
   @@index([status])
   @@map("gpu_nodes")
@@ -390,4 +396,58 @@ model EmailVerificationToken {
 
   @@index([userId])
   @@map("email_verification_tokens")
+}
+
+// ---------------------------------------------------------------------------
+// Telemetry (Phase 5)
+//
+// GpuStatus (above, Phase 2) is an admin-managed allocation/lifecycle state
+// (AVAILABLE/BUSY/MAINTENANCE/OFFLINE), set explicitly via the admin module.
+// Health status here is a *derived, connectivity* concept (ONLINE/DEGRADED/
+// OFFLINE, computed from heartbeat recency by the telemetry health service)
+// — the two are orthogonal and deliberately not merged into one field: a
+// node can be GpuStatus=AVAILABLE while its agent has gone silent.
+// ---------------------------------------------------------------------------
+
+// One row per node — the latest known telemetry snapshot, upserted on every
+// heartbeat/metrics submission. Cascade-deletes with the node: this is
+// derived current-state, not history (GpuMetric below is the history).
+model GpuHealthSnapshot {
+  id              String   @id @default(uuid()) @db.Uuid
+  gpuNodeId       String   @unique @db.Uuid
+  gpuUtilization  Float
+  memoryUsedGB    Float
+  temperature     Float
+  powerDraw       Float
+  activeProcesses Int
+  lastHeartbeat   DateTime @db.Timestamptz(6)
+  createdAt       DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt       DateTime @updatedAt @db.Timestamptz(6)
+
+  gpuNode GpuNode @relation(fields: [gpuNodeId], references: [id], onDelete: Cascade)
+
+  @@map("gpu_health_snapshots")
+}
+
+// Append-only time series: one row per heartbeat/metrics submission ("store
+// every metric historically"). `recordedAt` is the agent-reported
+// measurement time; `createdAt` is server ingestion time — kept separate so
+// clock drift/network delay don't corrupt the historical timeline.
+model GpuMetric {
+  id              String   @id @default(uuid()) @db.Uuid
+  gpuNodeId       String   @db.Uuid
+  gpuUtilization  Float
+  memoryUsedGB    Float
+  temperature     Float
+  powerDraw       Float
+  activeProcesses Int
+  recordedAt      DateTime @db.Timestamptz(6)
+  createdAt       DateTime @default(now()) @db.Timestamptz(6)
+
+  gpuNode GpuNode @relation(fields: [gpuNodeId], references: [id], onDelete: Cascade)
+
+  @@index([gpuNodeId])
+  @@index([gpuNodeId, recordedAt])
+  @@index([recordedAt])
+  @@map("gpu_metrics")
 }
