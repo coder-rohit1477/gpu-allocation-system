@@ -13,6 +13,9 @@ import gpuNodeRouter from "./modules/gpuNode/gpuNode.routes.js";
 import userRouter from "./modules/user/user.routes.js";
 import telemetryRouter from "./modules/telemetry/telemetry.routes.js";
 import gpuNodeHealthRouter from "./modules/telemetry/gpuNodeHealth.routes.js";
+import reservationRouter from "./modules/reservation/reservation.routes.js";
+import gpuNodeAvailabilityRouter from "./modules/reservation/gpuNodeAvailability.routes.js";
+import laboratoryCalendarRouter from "./modules/reservation/laboratoryCalendar.routes.js";
 
 export function createApp(): Express {
   const app = express();
@@ -27,15 +30,22 @@ export function createApp(): Express {
   app.use("/api/v1/auth", authRouter);
   app.use("/api/v1/organizations", organizationRouter);
   app.use("/api/v1/departments", departmentRouter);
+  // Must be mounted before laboratoryRouter for grouping consistency with
+  // the gpu-nodes routers below, though "/:id/calendar" (two segments)
+  // can never actually collide with the admin router's "/:id" (one).
+  app.use("/api/v1/laboratories", laboratoryCalendarRouter);
   app.use("/api/v1/laboratories", laboratoryRouter);
   app.use("/api/v1/courses", courseRouter);
-  // Must be mounted before gpuNodeRouter: "/live" would otherwise be
-  // swallowed by the admin router's GET "/:id" (id="live"). See
-  // gpuNodeHealth.routes.ts for the full explanation.
+  // Both must be mounted before gpuNodeRouter: "/live" and "/availability"
+  // would otherwise be swallowed by the admin router's GET "/:id"
+  // (id="live" / id="availability"). See gpuNodeHealth.routes.ts and
+  // gpuNodeAvailability.routes.ts for the full explanation.
   app.use("/api/v1/gpu-nodes", gpuNodeHealthRouter);
+  app.use("/api/v1/gpu-nodes", gpuNodeAvailabilityRouter);
   app.use("/api/v1/gpu-nodes", gpuNodeRouter);
   app.use("/api/v1/users", userRouter);
   app.use("/api/v1/telemetry", telemetryRouter);
+  app.use("/api/v1/reservations", reservationRouter);
 
   app.use((_req, res) => {
     res.status(404).json({ ok: false, error: { code: "NOT_FOUND", message: "Route not found" } });
