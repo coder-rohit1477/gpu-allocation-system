@@ -896,3 +896,192 @@ textarea {
   color: var(--color-text-muted);
   padding: var(--space-1);
 }
+
+/* ---------------------------------------------------------------------- */
+/* Phase 9 — Admin analytics                                              */
+/*                                                                        */
+/* Chart hues below are the dataviz skill's validated default categorical */
+/* palette (slots 1/2/3/7) and status palette — see                       */
+/* apps/web/src/lib/chartColors.ts. This app has no dark-mode support     */
+/* (see :root's `color-scheme: light` above), so — consistent with the    */
+/* rest of this stylesheet — only the light-mode step of each hue is      */
+/* defined; no @media(prefers-color-scheme) override is added here.       */
+/* ---------------------------------------------------------------------- */
+
+:root {
+  --chart-blue: #2a78d6;
+  --chart-orange: #eb6834;
+  --chart-aqua: #1baf7a;
+  --chart-violet: #4a3aa7;
+  --status-good: #0ca30c;
+  --status-warning: #fab219;
+  --status-critical: #d03b3b;
+}
+
+.analytics-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+@media (max-width: 900px) {
+  .analytics-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.stat-tile-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-5);
+}
+.stat-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 96px;
+}
+.stat-tile__value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--color-text);
+  font-variant-numeric: tabular-nums;
+}
+.stat-tile__label {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* BarChart (packages/ui) */
+.gpu-ui-barchart {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+.gpu-ui-barchart__row {
+  display: grid;
+  grid-template-columns: 9rem 1fr 3.5rem;
+  align-items: center;
+  gap: var(--space-3);
+}
+.gpu-ui-barchart__label {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.gpu-ui-barchart__track {
+  background: var(--tone-neutral-bg);
+  border-radius: var(--radius-sm);
+  height: 10px;
+  overflow: hidden;
+}
+.gpu-ui-barchart__fill {
+  display: block;
+  height: 100%;
+  border-radius: var(--radius-sm);
+}
+.gpu-ui-barchart__value {
+  font-size: 0.8rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+/* TrendChart (packages/ui) */
+.gpu-ui-trendchart {
+  width: 100%;
+  height: auto;
+  margin-top: var(--space-3);
+}
+.gpu-ui-trendchart__baseline {
+  stroke: var(--baseline, #c3c2b7);
+  stroke-width: 1;
+}
+.gpu-ui-trendchart__line {
+  fill: none;
+  stroke-width: 2;
+}
+.gpu-ui-trendchart__dot {
+  cursor: pointer;
+}
+.gpu-ui-trendchart__dot:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+}
+
+/* StatusBar (packages/ui) */
+.gpu-ui-statusbar {
+  margin-top: var(--space-3);
+}
+.gpu-ui-statusbar__track {
+  display: flex;
+  height: 14px;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--tone-neutral-bg);
+  gap: 2px;
+}
+.gpu-ui-statusbar__segment {
+  display: block;
+  height: 100%;
+  min-width: 2px;
+}
+.gpu-ui-statusbar__segment--good {
+  background: var(--status-good);
+}
+.gpu-ui-statusbar__segment--warning {
+  background: var(--status-warning);
+}
+.gpu-ui-statusbar__segment--critical {
+  background: var(--status-critical);
+}
+.gpu-ui-statusbar__segment--neutral {
+  background: var(--tone-neutral-text);
+}
+.gpu-ui-statusbar__legend {
+  display: flex;
+  gap: var(--space-4);
+  margin-top: var(--space-2);
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+.gpu-ui-statusbar__legend li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.gpu-ui-statusbar__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  display: inline-block;
+}
+.gpu-ui-statusbar__dot--good {
+  background: var(--status-good);
+}
+.gpu-ui-statusbar__dot--warning {
+  background: var(--status-warning);
+}
+.gpu-ui-statusbar__dot--critical {
+  background: var(--status-critical);
+}
+.gpu-ui-statusbar__dot--neutral {
+  background: var(--tone-neutral-text);
+}
+
+.report-status-cell {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.report-status-cell__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.8rem;
+  white-space: nowrap;
+}

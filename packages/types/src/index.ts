@@ -251,3 +251,111 @@ export interface LaboratoryCalendar {
   reservations: LaboratoryCalendarReservation[];
   maintenanceWindows: LaboratoryCalendarMaintenanceWindow[];
 }
+
+// ---------------------------------------------------------------------------
+// Analytics & reporting (Phase 9)
+// ---------------------------------------------------------------------------
+
+export interface UniversityAnalytics {
+  totals: {
+    organizations: number;
+    departments: number;
+    laboratories: number;
+    gpuNodes: number;
+    users: number;
+    students: number;
+    faculty: number;
+    courses: number;
+  };
+  gpuNodesByConnectivity: { online: number; degraded: number; offline: number };
+  reservationsByStatus: Record<ReservationStatus, number>;
+  totalComputeHours: number;
+  generatedAt: string;
+}
+
+export interface DepartmentAnalyticsRow {
+  departmentId: string;
+  departmentName: string;
+  departmentCode: string;
+  laboratories: number;
+  gpuNodes: number;
+  students: number;
+  faculty: number;
+  totalReservations: number;
+  totalComputeHours: number;
+  utilizationPercent: number;
+}
+
+export interface GpuUtilizationQuery {
+  departmentId?: string;
+  labId?: string;
+}
+
+export interface GpuUtilizationRow {
+  gpuNodeId: string;
+  hostname: string;
+  gpuModel: string;
+  laboratoryId: string;
+  connectivityStatus: ConnectivityStatus;
+  currentUtilizationPercent: number | null;
+  avgUtilizationPercent7d: number | null;
+}
+
+export interface StudentsAnalytics {
+  totalStudents: number;
+  activeStudents: number;
+  totalComputeHours: number;
+  avgComputeHoursPerActiveStudent: number;
+  byDepartment: {
+    departmentId: string;
+    departmentName: string;
+    totalStudents: number;
+    activeStudents: number;
+  }[];
+}
+
+export interface TopCoursesQuery {
+  limit?: number;
+}
+
+export interface CourseAnalyticsRow {
+  courseId: string;
+  courseCode: string;
+  courseName: string;
+  semester: string;
+  totalReservations: number;
+  activeReservations: number;
+  totalComputeHours: number;
+}
+
+export type ReportGranularity = "daily" | "weekly" | "monthly";
+export type ReportFormat = "json" | "csv";
+
+export interface ReportBucket {
+  periodStart: string;
+  periodEnd: string;
+  reservationsCreated: number;
+  reservationsByStatus: Record<ReservationStatus, number>;
+  totalComputeHours: number;
+}
+
+export interface Report {
+  granularity: ReportGranularity;
+  buckets: ReportBucket[];
+  generatedAt: string;
+}
+
+export interface DailyReportQuery {
+  date?: string;
+  days?: number;
+}
+
+export interface WeeklyReportQuery {
+  weekOf?: string;
+  weeks?: number;
+}
+
+export interface MonthlyReportQuery {
+  month?: string;
+  months?: number;
+}

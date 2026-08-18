@@ -1,11 +1,16 @@
 import type {
   ApiResult,
   Course,
+  CourseAnalyticsRow,
   CreateReservationInput,
+  DailyReportQuery,
   Department,
+  DepartmentAnalyticsRow,
   GpuNode,
   GpuNodeAvailability,
   GpuNodeAvailabilityQuery,
+  GpuUtilizationQuery,
+  GpuUtilizationRow,
   HealthCheckResult,
   Laboratory,
   LaboratoryCalendar,
@@ -16,10 +21,16 @@ import type {
   ListLaboratoriesQuery,
   ListMyReservationsQuery,
   LoginInput,
+  MonthlyReportQuery,
   Organization,
   PaginatedResult,
   PublicUser,
+  Report,
   Reservation,
+  StudentsAnalytics,
+  TopCoursesQuery,
+  UniversityAnalytics,
+  WeeklyReportQuery,
 } from "@gpu/types";
 
 export interface GpuPlatformClientOptions {
@@ -163,5 +174,24 @@ export class GpuPlatformClient {
       this.request("/api/v1/reservations", { method: "POST", body: JSON.stringify(input) }),
     cancel: (id: string): Promise<Reservation> =>
       this.request(`/api/v1/reservations/${id}`, { method: "DELETE" }),
+  };
+
+  readonly analytics = {
+    university: (): Promise<UniversityAnalytics> => this.request("/api/v1/analytics/university"),
+    departments: (): Promise<{ items: DepartmentAnalyticsRow[] }> =>
+      this.request("/api/v1/analytics/departments"),
+    gpuUtilization: (query?: GpuUtilizationQuery): Promise<{ items: GpuUtilizationRow[] }> =>
+      this.request("/api/v1/analytics/gpu-utilization", { query }),
+    students: (): Promise<StudentsAnalytics> => this.request("/api/v1/analytics/students"),
+    courses: (query?: TopCoursesQuery): Promise<{ items: CourseAnalyticsRow[] }> =>
+      this.request("/api/v1/analytics/courses", { query }),
+  };
+
+  readonly reports = {
+    daily: (query?: DailyReportQuery): Promise<Report> => this.request("/api/v1/reports/daily", { query }),
+    weekly: (query?: WeeklyReportQuery): Promise<Report> =>
+      this.request("/api/v1/reports/weekly", { query }),
+    monthly: (query?: MonthlyReportQuery): Promise<Report> =>
+      this.request("/api/v1/reports/monthly", { query }),
   };
 }

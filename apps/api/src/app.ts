@@ -18,6 +18,8 @@ import gpuNodeAvailabilityRouter from "./modules/reservation/gpuNodeAvailability
 import laboratoryCalendarRouter from "./modules/reservation/laboratoryCalendar.routes.js";
 import facultyRouter from "./modules/faculty/faculty.routes.js";
 import reservationBulkRouter from "./modules/faculty/reservationBulk.routes.js";
+import analyticsRouter from "./modules/analytics/analytics.routes.js";
+import reportsRouter from "./modules/analytics/reports.routes.js";
 
 export function createApp(): Express {
   const app = express();
@@ -54,6 +56,8 @@ export function createApp(): Express {
   app.use("/api/v1/reservations", reservationBulkRouter);
   app.use("/api/v1/reservations", reservationRouter);
   app.use("/api/v1/faculty", facultyRouter);
+  app.use("/api/v1/analytics", analyticsRouter);
+  app.use("/api/v1/reports", reportsRouter);
 
   app.use((_req, res) => {
     res.status(404).json({ ok: false, error: { code: "NOT_FOUND", message: "Route not found" } });
