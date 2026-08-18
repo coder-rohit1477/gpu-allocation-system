@@ -2,49 +2,92 @@ name: CI
 
 on:
   push:
+    branches: [main]
   pull_request:
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Real values (Postgres/Redis service containers below); the rest are
+  # throwaway CI-only secrets — never reused outside this workflow run.
+  NODE_ENV: test
+  DATABASE_URL: postgresql://gpu:gpu@localhost:5432/gpu_platform?schema=public
+  REDIS_URL: redis://localhost:6379
+  CORS_ORIGINS: http://localhost:5173
+  JWT_ACCESS_SECRET: ci-only-access-secret-not-a-real-credential
+  JWT_ACCESS_TTL_MINUTES: 15
+  REFRESH_TOKEN_PEPPER: ci-only-refresh-pepper-not-a-real-credential
+  REFRESH_TOKEN_TTL_DAYS: 7
+  # Lower than the app's default (12) purely so CI's bcrypt-heavy auth tests
+  # don't spend their time on real production hashing cost.
+  BCRYPT_SALT_ROUNDS: 4
+  TELEMETRY_INGEST_TOKEN: ci-only-telemetry-token-not-a-real-credential
+  TELEMETRY_ONLINE_THRESHOLD_SECONDS: 30
+  TELEMETRY_DEGRADED_THRESHOLD_SECONDS: 90
+
 jobs:
-  backend-tests:
+  ci:
+    name: Install, build, typecheck, lint, test
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: backend
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: gpu
+          POSTGRES_PASSWORD: gpu
+          POSTGRES_DB: gpu_platform
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U gpu -d gpu_platform"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
         with:
-          node-version: 20.x
-          cache: npm
-          cache-dependency-path: backend/package-lock.json
-
-      - name: Install backend dependencies
-        run: npm ci
-
-      - name: Run backend tests
-        run: npm test
-
-  frontend-build:
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: frontend
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+          version: 11
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20.x
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
+          node-version: 22.x
+          cache: pnpm
 
-      - name: Install frontend dependencies
-        run: npm ci
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
 
-      - name: Build frontend
-        run: npm run build
+      # The Prisma client's generated types are a build-time dependency of
+      # apps/api — must exist before Build/Typecheck, same as in
+      # apps/api/Dockerfile's build stage.
+      - name: Generate Prisma Client
+        run: pnpm --filter @gpu/api run prisma:generate
+
+      - name: Validate Prisma schema
+        run: pnpm --filter @gpu/api run prisma:validate
+
+      - name: Build
+        run: pnpm build
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Apply database migrations
+        run: pnpm --filter @gpu/api run prisma:deploy
+
+      - name: Test
+        run: pnpm test

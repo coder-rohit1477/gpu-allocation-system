@@ -1,12 +1,13 @@
 import { createApp } from "./app.js";
 import { env } from "./config/env.js";
+import { logger } from "./lib/logger.js";
 import { prisma } from "./lib/prisma.js";
 import { runReservationStatusSweep } from "./modules/reservation/reservationStatusWorker.service.js";
 
 const app = createApp();
 
-app.listen(env.port, () => {
-  console.log(`[api] listening on port ${env.port} (${env.nodeEnv})`);
+const server = app.listen(env.port, () => {
+  logger.info({ port: env.port, env: env.nodeEnv }, "api listening");
 });
 
 // Automatic Reservation Status Worker (Phase 6) — advances APPROVED ->
@@ -15,8 +16,26 @@ app.listen(env.port, () => {
 // directly, so Supertest integration tests stay deterministic and call
 // runReservationStatusSweep() themselves with an explicit `now`.
 const RESERVATION_SWEEP_INTERVAL_MS = 30_000;
-setInterval(() => {
+const sweepInterval = setInterval(() => {
   runReservationStatusSweep(prisma).catch((error: unknown) => {
-    console.error("[api] reservation status sweep failed", error);
+    logger.error({ err: error }, "reservation status sweep failed");
   });
 }, RESERVATION_SWEEP_INTERVAL_MS);
+
+// Graceful shutdown (Phase 10 devops) — lets in-flight requests finish and
+// stops the sweep interval before the process exits, so `docker stop` /
+// orchestrator rollouts don't cut connections mid-response.
+function shutdown(signal: NodeJS.Signals): void {
+  logger.info({ signal }, "shutting down");
+  clearInterval(sweepInterval);
+  server.close((err) => {
+    if (err) {
+      logger.error({ err }, "error during shutdown");
+      process.exit(1);
+    }
+    process.exit(0);
+  });
+}
+
+process.on("SIGTERM", () => shutdown("SIGTERM"));
+process.on("SIGINT", () => shutdown("SIGINT"));

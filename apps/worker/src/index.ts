@@ -1,6 +1,7 @@
 import { Queue, Worker, type Job } from "bullmq";
 import { Redis } from "ioredis";
 import { env } from "./config/env.js";
+import { logger } from "./lib/logger.js";
 
 /**
  * Phase 1 foundation worker. No domain job processors (notifications,
@@ -17,17 +18,17 @@ const queue = new Queue(QUEUE_NAME, { connection });
 const worker = new Worker(
   QUEUE_NAME,
   async (job: Job) => {
-    console.log(`[worker] processed job ${job.id} (${job.name})`);
+    logger.info({ jobId: job.id, jobName: job.name }, "processed job");
   },
   { connection },
 );
 
 worker.on("ready", () => {
-  console.log(`[worker] connected to Redis, listening on queue "${QUEUE_NAME}"`);
+  logger.info({ queue: QUEUE_NAME }, "connected to Redis, listening on queue");
 });
 
 worker.on("error", (error) => {
-  console.error("[worker] error", error);
+  logger.error({ err: error }, "worker error");
 });
 
 async function scheduleHeartbeat(): Promise<void> {
@@ -39,15 +40,16 @@ async function scheduleHeartbeat(): Promise<void> {
 }
 
 scheduleHeartbeat().catch((error: unknown) => {
-  console.error("[worker] failed to schedule heartbeat", error);
+  logger.error({ err: error }, "failed to schedule heartbeat");
 });
 
-async function shutdown(): Promise<void> {
+async function shutdown(signal: NodeJS.Signals): Promise<void> {
+  logger.info({ signal }, "shutting down");
   await worker.close();
   await queue.close();
   await connection.quit();
   process.exit(0);
 }
 
-process.on("SIGINT", () => void shutdown());
-process.on("SIGTERM", () => void shutdown());
+process.on("SIGINT", () => void shutdown("SIGINT"));
+process.on("SIGTERM", () => void shutdown("SIGTERM"));

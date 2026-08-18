@@ -3,6 +3,8 @@ import cors from "cors";
 import helmet from "helmet";
 import cookieParser from "cookie-parser";
 import { env } from "./config/env.js";
+import { logger } from "./lib/logger.js";
+import { requestLogger } from "./middleware/requestLogger.js";
 import healthRouter from "./routes/health.js";
 import authRouter from "./modules/auth/auth.routes.js";
 import organizationRouter from "./modules/organization/organization.routes.js";
@@ -27,6 +29,7 @@ export function createApp(): Express {
   app.set("trust proxy", 1);
   app.use(helmet());
   app.use(cors({ origin: env.corsOrigins, credentials: true }));
+  app.use(requestLogger);
   app.use(express.json());
   app.use(cookieParser());
 
@@ -66,7 +69,7 @@ export function createApp(): Express {
   // Express 4 error middleware must take exactly four parameters to be
   // recognized as an error handler, even though `next` is unused here.
   app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
-    console.error("[api] unhandled error", err);
+    logger.error({ err }, "unhandled error");
     res
       .status(500)
       .json({ ok: false, error: { code: "INTERNAL_ERROR", message: "Internal server error" } });

@@ -1,0 +1,38 @@
+# Keeps Docker build contexts small — every app Dockerfile builds from the
+# monorepo root context (see each Dockerfile's header comment), so this file
+# applies to all of them.
+
+**/node_modules
+**/dist
+**/build
+**/coverage
+**/*.tsbuildinfo
+**/.turbo
+**/.vite
+
+.git
+.github
+.claude
+.vscode
+.idea
+
+# Legacy pre-monorepo scaffold (see docker-compose.legacy.yml) — never part
+# of an apps/* image build.
+backend
+frontend
+docker-compose.legacy.yml
+
+*.md
+!README.md
+docs
+ARCHITECTURE_AUDIT_AND_REDESIGN.md
+
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
+
+.DS_Store
+*.log

@@ -1,418 +1,249 @@
-# PBL GPU Manager
+# GPU Resource Management Platform
 
-GPU Resource Management System for academic labs and shared compute environments.
+[![CI](https://github.com/coder-rohit1477/gpu-allocation-system/actions/workflows/ci.yml/badge.svg)](https://github.com/coder-rohit1477/gpu-allocation-system/actions/workflows/ci.yml)
+![Node](https://img.shields.io/badge/node-%3E%3D22.13-339933?logo=node.js&logoColor=white)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.7-3178C6?logo=typescript&logoColor=white)
+![pnpm](https://img.shields.io/badge/pnpm-workspaces-F69220?logo=pnpm&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?logo=postgresql&logoColor=white)
 
-## Overview
+A production-oriented platform for allocating shared GPU hardware across
+students, faculty, and administrators in an academic setting: role-based
+booking with faculty approval, live GPU telemetry, conflict-free scheduling,
+department-level administration, and usage analytics.
 
-PBL GPU Manager is a full-stack platform for allocating shared GPU hardware across students, faculty, and administrators. It combines role-based access control, request approval workflows, realtime notifications, conflict detection, audit logging, health monitoring, and Swagger-based API documentation into one production-oriented application.
+## Contents
 
-The repository contains:
+- [Architecture](#architecture)
+- [Tech stack](#tech-stack)
+- [Monorepo layout](#monorepo-layout)
+- [Features](#features)
+- [Quick start (local dev)](#quick-start-local-dev)
+- [Docker](#docker)
+- [Environment variables](#environment-variables)
+- [Scripts](#scripts)
+- [Testing](#testing)
+- [CI/CD](#cicd)
+- [Documentation](#documentation)
 
-- A React frontend with role-specific dashboards
-- An Express and Mongoose backend
-- MongoDB persistence for users, GPU resources, requests, and audit records
-- Socket.IO for targeted realtime updates
-- GitHub Actions CI for automated verification
-- Integration tests built around MongoMemoryServer
-
-## Problem Statement
-
-Shared GPU labs usually rely on manual coordination and spreadsheet-level tracking. That creates predictable failures:
-
-- the same GPU can be assigned to overlapping requests
-- students cannot reliably track approval status
-- faculty lack a clean review workflow
-- administrators have limited traceability into who did what and when
-- hardware availability is difficult to monitor in real time
-
-This system addresses those issues by making allocation, notification, auditing, and monitoring part of the application itself rather than external manual processes.
-
-## Key Features
-
-- Authentication and RBAC
-  - JWT access tokens
-  - httpOnly refresh cookies
-  - backend-enforced role restrictions for STUDENT, FACULTY, and ADMIN
-
-- GPU Request Workflow
-  - student request creation
-  - faculty approval and rejection
-  - approved allocations update GPU capacity
-  - completed requests restore capacity
-
-- Conflict Detection
-  - prevents the same GPU from being assigned to overlapping approved requests
-  - returns HTTP `409 Conflict` for overlap violations
-
-- Audit Logging
-  - records login, logout, request creation, approval, rejection, and GPU allocation
-  - stores actor, action, timestamp, and metadata
-
-- Real-Time Notifications
-  - Socket.IO events sent to the requesting student
-  - targeted room-based delivery
-
-- Health Monitoring
-  - `/live`
-  - `/ready`
-  - `/health`
-
-- Swagger/OpenAPI
-  - interactive `/api-docs`
-  - JWT bearer auth support
-  - request and response schemas
-
-- Automated Testing
-  - integration-heavy backend coverage
-  - MongoMemoryServer-based isolation
-  - realtime socket testing
-
-- CI/CD
-  - GitHub Actions backend test job
-  - GitHub Actions frontend build job
-
-## System Architecture
+## Architecture
 
 ```mermaid
 flowchart TB
-  User[User] --> Frontend[Frontend App]
-  Frontend --> Backend[Backend API]
-  Backend --> Database[MongoDB]
-  Backend --> Realtime[Socket IO]
-  Backend --> Docs[Swagger Docs]
+  Browser[Browser — React SPA] -->|HTTPS| Nginx[nginx reverse proxy]
+  Agent[GPU node agents] -->|"X-Telemetry-Token"| Nginx
+  Nginx --> Web[apps/web — static SPA]
+  Nginx --> API[apps/api — Express + Prisma]
+  API --> Postgres[(PostgreSQL 16)]
+  API --> Redis[(Redis 7)]
+  Worker[apps/worker — BullMQ] --> Redis
 ```
 
-The application is organized into three main layers:
+A TypeScript pnpm monorepo, not the MERN/MongoDB prototype this project
+started as — see [Documentation](#documentation) for how that transition
+happened. The backend is a modular monolith (Express + Prisma/PostgreSQL)
+organized into one directory per domain module
+(`apps/api/src/modules/*`), each with its own `*.dto.ts` (Zod validation),
+`*.service.ts` (business logic), `*.repository.ts` (Prisma queries),
+`*.controller.ts`, and `*.routes.ts`. Modules only ever import another
+module's *public* exports (service/repository functions), never reach into
+its internals — the same discipline every phase of this build followed.
 
-- Frontend
-  - React app with role-specific dashboards
-  - Axios client with auth interceptors
-  - Socket.IO client for realtime updates
+## Tech stack
 
-- Backend
-  - Express API under `backend/server`
-  - Route, controller, middleware, and service layers
-  - Swagger/OpenAPI docs at `/api-docs`
-  - Socket.IO server for targeted notifications
+| Layer | Technology |
+|---|---|
+| Language | TypeScript (strict mode) everywhere — backend, frontend, shared packages |
+| API | Express 4, Zod validation, JWT (access) + httpOnly rotating refresh cookies |
+| Database | PostgreSQL 16 via Prisma ORM |
+| Cache / pub-sub | Redis 7 (ioredis) |
+| Background jobs | BullMQ |
+| Frontend | React 19, React Router 7, Vite — no CSS framework, no chart library (hand-built, accessible, colorblind-validated chart primitives in `@gpu/ui`) |
+| Testing | Vitest — unit tests for pure logic, Supertest-driven integration tests against a real Postgres/Redis for every module |
+| Logging | `pino` structured JSON logs (`apps/api`, `apps/worker`) |
+| Package management | pnpm workspaces |
+| Containers | Multi-stage Docker builds per app, Docker Compose for both dev and production topologies |
+| CI | GitHub Actions — install, build, typecheck, lint, test, Prisma schema validation |
 
-- Data and runtime
-  - MongoDB stores users, GPU resources, requests, and audit logs
-  - Docker Compose can run the full stack together
+## Monorepo layout
 
-## Request Workflow
-
-```mermaid
-flowchart LR
-  Student[Student] --> Submit[Submit Request]
-  Submit --> Backend[Backend API]
-  Backend --> Review[Faculty Review]
-  Review --> Approve[Approve]
-  Review --> Reject[Reject]
-  Approve --> Notify[Socket IO Update]
-  Reject --> Notify
-  Notify --> StudentUpdate[Student Update]
+```text
+apps/
+  api/      Express API — one module per domain, see apps/api/src/modules/*
+  web/      React SPA — student portal + admin analytics area
+  worker/   BullMQ background worker (foundation stub)
+packages/
+  types/    Shared TypeScript types/contracts (API request/response shapes)
+  sdk/      Typed fetch client used by apps/web, built on packages/types
+  ui/       Shared React components + chart primitives (Button, Card, Badge,
+            Tabs, BarChart, TrendChart, StatusBar, ...) and design tokens
+  config/   Shared tsconfig/eslint presets every package/app extends
+infra/
+  nginx/    Edge reverse-proxy config for the production Compose stack
+docs/
+  api.md            Full REST API reference
+  deployment.md      Production deployment runbook
+  architecture.md, conflict-detection.md, realtime-notifications.md,
+  testing-strategy.md  Historical design docs from the pre-rebuild
+                        MongoDB/Socket.IO prototype (see below)
+backend/, frontend/,
+docker-compose.legacy.yml   The original MERN prototype — retained for
+                             history, not part of the running system, not
+                             covered by CI or the instructions in this file
 ```
 
-Request handling follows a simple flow:
+> **About `backend/`, `frontend/`, and `docs/architecture.md` et al.**
+> This project began as a MongoDB/Express/React/Socket.IO prototype (still
+> present under `backend/`/`frontend/`, unmodified, excluded from linting
+> and CI). [`ARCHITECTURE_AUDIT_AND_REDESIGN.md`](./ARCHITECTURE_AUDIT_AND_REDESIGN.md)
+> is the audit that proposed rebuilding it as the TypeScript/PostgreSQL
+> modular monolith under `apps/`/`packages/` that this README describes —
+> that rebuild is what actually shipped. `docs/architecture.md`,
+> `docs/conflict-detection.md`, `docs/realtime-notifications.md`, and
+> `docs/testing-strategy.md` are the *original* prototype's docs, kept for
+> history; they describe the old system, not this one.
+> [`docs/api.md`](./docs/api.md) and [`docs/deployment.md`](./docs/deployment.md)
+> are current.
 
-- Student submits a GPU request from the frontend
-- Backend validates and stores the request
-- Faculty approves or rejects the request
-- Approval checks prevent overlapping GPU allocations
-- The backend emits a targeted Socket.IO update to the student
+## Features
 
-## Conflict Detection
+- **Authentication & RBAC** — JWT access tokens + rotating httpOnly refresh
+  cookies with reuse detection, five roles (`SUPER_ADMIN`, `DEPARTMENT_ADMIN`,
+  `LAB_ADMIN`, `FACULTY`, `STUDENT`), department-scoped authorization.
+- **University administration** — organizations, departments, laboratories,
+  courses, GPU inventory, user management.
+- **GPU telemetry** — heartbeat/metrics ingestion from node agents, derived
+  `ONLINE`/`DEGRADED`/`OFFLINE` connectivity, maintenance windows.
+- **Booking engine** — conflict-free scheduling, a smart best-fit allocator
+  (picks the smallest GPU node that satisfies a request rather than the
+  first available), an automatic status worker that advances reservations
+  through `APPROVED → ACTIVE → COMPLETED` on wall-clock time.
+- **Faculty workflow** — a per-department dashboard, course workspace,
+  weekly lab schedule, and transactional bulk approve/reject with a
+  research-vs-coursework priority queue.
+- **Student portal** — dashboard, GPU explorer with live status, reservation
+  management, a weekly calendar, history with CSV export, and a
+  notification center derived from the student's own reservation activity.
+- **Analytics & reporting** — university/department/GPU/student/course
+  analytics and daily/weekly/monthly reports, each exportable as CSV, with
+  hand-built (no external chart library) colorblind-validated chart
+  components.
+- **Production-ready deployment** — multi-stage Docker builds, an nginx
+  edge reverse proxy, structured logging, liveness/readiness health
+  endpoints, and a CI pipeline that gates every push.
 
-Conflict detection happens during approval, before the request becomes authoritative.
+## Quick start (local dev)
 
-### Problem
+Prerequisites: Node.js ≥ 22.13, pnpm ≥ 9, Docker (for Postgres/Redis).
 
-Two approved requests must not claim the same GPU during overlapping time windows. If they do, hardware is over-allocated and the schedule becomes invalid.
+```bash
+git clone git@github.com:coder-rohit1477/gpu-allocation-system.git
+cd gpu-allocation-system
+pnpm install
 
-### Overlap Algorithm
+# Start Postgres + Redis only (the dev compose file — see Docker below)
+docker compose up -d postgres redis
 
-The backend loads the target request and the selected GPU, then checks for any already approved request with:
+# Copy and fill in per-app env files
+cp apps/api/.env.example apps/api/.env
+cp apps/worker/.env.example apps/worker/.env
+cp apps/web/.env.example apps/web/.env
+# apps/api/.env needs real secrets even in dev — see the file's comments
+# for `openssl rand -hex 32` pointers.
 
-- the same `gpuResourceId`
-- a different request ID
-- an overlapping date range
+# Apply the schema and (optionally) seed sample data
+pnpm --filter @gpu/api run prisma:migrate
+pnpm --filter @gpu/api run prisma:seed   # optional — creates a super-admin
+                                          # and sample org/dept/lab/course data
 
-The effective overlap condition is:
+# Run every app in watch mode
+pnpm dev
+```
 
-- `existing.startDate < request.endDate`
-- `existing.endDate > request.startDate`
+- API: <http://localhost:4000> (health: `/health`, `/ready`, `/live`)
+- Web: <http://localhost:5173>
+- Prisma Studio: `pnpm --filter @gpu/api run prisma:studio`
 
-### HTTP 409 Behavior
+## Docker
 
-If a conflict exists, the approval endpoint stops immediately and returns HTTP `409 Conflict` with the message that the selected GPU is already assigned to an overlapping approved request.
+Two Compose files, two different jobs:
 
-This behavior is covered by integration tests in `backend/tests/gpu-allocation-overlap.test.js`.
+| File | Purpose |
+|---|---|
+| `docker-compose.yml` | Local dev convenience — Postgres/Redis (+ optionally the built app containers) with host ports exposed directly, hardcoded dev-only credentials |
+| `docker-compose.prod.yml` | Production topology — single nginx ingress, no direct port exposure for Postgres/Redis/API/web, every secret from the environment with no insecure default. See [`docs/deployment.md`](./docs/deployment.md) for the full runbook. |
 
-## Real-Time Notifications
+Build and run the whole stack (any variant):
 
-Realtime updates are delivered with Socket.IO.
+```bash
+# Dev
+docker compose up -d --build
 
-### JWT Socket Auth
+# Production
+cp .env.prod.example .env.prod   # fill in real secrets first
+docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
+```
 
-The socket connection uses the same JWT identity model as HTTP. The server accepts the token from socket handshake auth or from the Authorization header, verifies it, and loads the current user from MongoDB.
+## Environment variables
 
-### User Rooms
+Each app documents its own required variables in `apps/<app>/.env.example`
+(dev) and the root `.env.prod.example` (production). Summary:
 
-Each authenticated socket joins a room named:
+| App | Key variables |
+|---|---|
+| `apps/api` | `DATABASE_URL`, `REDIS_URL`, `CORS_ORIGINS`, `JWT_ACCESS_SECRET`, `REFRESH_TOKEN_PEPPER`, `TELEMETRY_INGEST_TOKEN`, `LOG_LEVEL` |
+| `apps/worker` | `REDIS_URL`, `LOG_LEVEL` |
+| `apps/web` | `VITE_API_URL` (build-time — empty string in production so the SPA calls same-origin through the nginx proxy) |
 
-- `user:<userId>`
+Every required variable is validated at process start
+(`apps/api/src/config/env.ts`, `apps/worker/src/config/env.ts`) — a missing
+one fails startup immediately with a clear `Missing required environment
+variable: X` error rather than an obscure failure later.
 
-That keeps notifications isolated to the requesting student instead of broadcasting to all connected clients.
+## Scripts
 
-### Targeted Events
+Run from the repo root (pnpm workspace-aware):
 
-When a faculty member approves or rejects a request, the backend emits a targeted event to the student’s room:
+| Script | What it does |
+|---|---|
+| `pnpm dev` | Every app in watch mode, in parallel |
+| `pnpm build` | Build `packages/*` then `apps/*`, in that order |
+| `pnpm typecheck` | `tsc --noEmit` in every package/app |
+| `pnpm lint` / `pnpm lint:fix` | ESLint across the whole workspace |
+| `pnpm format` / `pnpm format:check` | Prettier |
+| `pnpm test` | Vitest (currently `apps/api`'s unit + integration suite) |
+| `pnpm clean` | Remove build output in every package/app |
 
-- `request:approved`
-- `request:rejected`
+## Testing
 
-Payloads include:
+`apps/api` has the project's test suite: fast unit tests for pure logic
+(GPU allocator scoring, date-bucketing math, priority-queue ordering, ...)
+alongside Supertest-driven integration tests that exercise every module
+end-to-end against a real local Postgres + Redis — RBAC, conflict
+detection, the reservation status worker, bulk-approval transactions and
+rollback, analytics aggregation, and more.
 
-- `requestId`
-- `status`
-- `gpuId`
-- `timestamp`
-
-## Audit Logging
-
-The audit log infrastructure records important user and system actions without changing core business behavior.
-
-### Logged Events
-
-- `USER_LOGIN`
-- `USER_LOGOUT`
-- `REQUEST_CREATED`
-- `REQUEST_APPROVED`
-- `REQUEST_REJECTED`
-- `GPU_ALLOCATED`
-
-### Traceability
-
-Each record stores:
-
-- `action`
-- `actorId`
-- `timestamp`
-- `metadata`
-
-This gives administrators a complete trail of security-sensitive and workflow-sensitive activity, including who initiated the action, what happened, and what contextual data was associated with it.
-
-## Testing Strategy
-
-The backend uses integration-focused tests with real HTTP requests and an in-memory MongoDB instance.
-
-### What the suite covers
-
-- authentication
-- GPU request creation
-- approval and rejection
-- conflict detection
-- realtime notifications
-- health endpoints
-- socket authentication
-- basic health and connectivity behavior
-
-### Current status
-
-- `19 passing tests`
-- `7 passing suites`
-
-### MongoMemoryServer
-
-MongoMemoryServer provides isolated test databases so each test file starts with a clean state and does not depend on a developer’s local MongoDB instance.
-
-### Integration Testing
-
-Tests use:
-
-- `supertest` for HTTP endpoints
-- `socket.io-client` for realtime events
-- `mongoose` models for persisted-state assertions
-
-Supporting documentation:
-
-- [Testing Strategy](docs/testing-strategy.md)
-
-## API Documentation
-
-Swagger UI is available at:
-
-- `/api-docs`
-
-It documents:
-
-- authentication endpoints
-- GPU request endpoints
-- GPU resource endpoints
-- admin endpoints
-- analytics endpoints
-- health endpoints
-
-The OpenAPI definition includes:
-
-- JWT bearer authentication
-- request schemas
-- response schemas
-- status codes
-
-## Health Endpoints
-
-Production-style health monitoring endpoints are available without checking business logic.
-
-- `/live`
-  - liveness probe
-  - returns `{ "status": "ok" }`
-
-- `/ready`
-  - readiness probe
-  - returns MongoDB connection state
-  - reports either connected or disconnected
-
-- `/health`
-  - general health snapshot
-  - includes MongoDB status, uptime, and environment
-
-These endpoints are lightweight and use the existing Mongoose connection state.
+```bash
+docker compose up -d postgres redis
+pnpm --filter @gpu/api run prisma:deploy
+pnpm test
+```
 
 ## CI/CD
 
-GitHub Actions runs two checks on every push and pull request:
+Every push and pull request runs [`.github/workflows/ci.yml`](./.github/workflows/ci.yml)
+against real Postgres/Redis service containers:
 
-- Backend job
-  - installs dependencies
-  - runs the full Jest test suite
+**install → generate Prisma client → validate Prisma schema → build →
+typecheck → lint → apply migrations → test**
 
-- Frontend job
-  - installs dependencies
-  - runs the production build
+All six checks must pass before merging. See the CI badge at the top of
+this file.
 
-This means the repository continuously verifies:
+## Documentation
 
-- backend correctness
-- frontend build integrity
-- API and realtime behavior through tests
-
-Workflow file:
-
-- [`.github/workflows/ci.yml`](.github/workflows/ci.yml)
-
-## Local Development Setup
-
-### Prerequisites
-
-- Node.js 18 or newer
-- MongoDB locally or via Atlas
-
-### Backend
-
-```bash
-cd backend
-copy .env.example .env
-npm install
-npm run seed
-npm start
-```
-
-### Frontend
-
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-### Docker
-
-```bash
-docker compose up --build
-```
-
-Optional seed command:
-
-```bash
-docker compose exec backend node scripts/seed.js
-```
-
-## Environment Variables
-
-### Backend
-
-| Variable | Purpose | Example |
-|---|---|---|
-| `MONGODB_URI` | MongoDB connection string | `mongodb://localhost:27017/pbl-gpu-manager` |
-| `JWT_SECRET` | JWT signing secret | `your_very_long_secret_here` |
-| `JWT_EXPIRES_IN` | Access token lifetime | `15m` |
-| `REFRESH_TOKEN_EXPIRES_IN` | Refresh token lifetime | `7d` |
-| `PORT` | API server port | `5001` |
-| `NODE_ENV` | Runtime environment | `development` |
-| `ALLOWED_ORIGINS` | Allowed frontend origins | `http://localhost:5173,http://localhost:80` |
-
-### Frontend
-
-| Variable | Purpose | Example |
-|---|---|---|
-| `VITE_API_BASE_PATH` | Axios base path | `/api` |
-
-## Project Structure
-
-```text
-.
-├── backend
-│   ├── app.js
-│   ├── server
-│   │   ├── config
-│   │   ├── controllers
-│   │   ├── docs
-│   │   ├── middleware
-│   │   ├── models
-│   │   ├── modules
-│   │   ├── realtime
-│   │   └── routes
-│   └── tests
-├── docs
-├── frontend
-│   ├── public
-│   └── src
-├── docker-compose.yml
-└── README.md
-```
-
-## Screenshots
-
-## Application Screenshots
-
-### Login Page
-![Login](docs/images/login-page.png)
-
-### Student Dashboard
-![Student Dashboard](docs/images/student-dashboard-with-pending-request.png)
-
-### Faculty Dashboard
-![Faculty Dashboard](docs/images/faculty-dashboard.png)
-
-### Admin Dashboard
-![Admin Dashboard](docs/images/admin-dashboard.png)
-
-### API Documentation
-![Swagger](docs/images/swagger-api-overview.png)
-
-
-## Future Improvements
-
-- Add frontend end-to-end tests
-- Add audit log filtering and export
-- Add richer analytics visualizations
-- Add deployment notes for cloud hosting
-
-## Project Highlights
-
-- Built a role-based GPU allocation platform with JWT auth, RBAC, realtime notifications, and audit logging.
-- Implemented conflict-safe GPU approval logic that prevents overlapping allocations and returns deterministic HTTP `409` responses.
-- Added production-style health monitoring endpoints and a Swagger/OpenAPI documentation surface for operational readiness.
-- Created an integration-first backend test suite using MongoMemoryServer, Supertest, and Socket.IO client coverage.
-- Established CI automation with GitHub Actions to validate backend tests and frontend build integrity on every push and pull request.
+- [`docs/api.md`](./docs/api.md) — full REST API reference (every route,
+  required role, and a worked example)
+- [`docs/deployment.md`](./docs/deployment.md) — production deployment,
+  TLS, backups, scaling, troubleshooting
+- [`ARCHITECTURE_AUDIT_AND_REDESIGN.md`](./ARCHITECTURE_AUDIT_AND_REDESIGN.md) —
+  the audit/redesign proposal this system was rebuilt from

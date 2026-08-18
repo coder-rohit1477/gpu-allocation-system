@@ -28,4 +28,6 @@ ENV NODE_ENV=production
 COPY --from=build /repo /repo
 WORKDIR /repo/apps/api
 EXPOSE 4000
+HEALTHCHECK --interval=10s --timeout=5s --start-period=15s --retries=3 \
+  CMD ["node", "healthcheck.mjs"]
 CMD ["node", "dist/index.js"]

@@ -1,0 +1,145 @@
+# Production topology. Self-contained (not an override of docker-compose.yml,
+# which stays the local-dev convenience stack) — see docs/deployment.md for
+# the full runbook. Key differences from the dev stack:
+#
+#   - A single ingress: only `nginx` publishes a host port. Postgres, Redis,
+#     the API, and the web container are reachable only on the internal
+#     compose network — never exposed directly.
+#   - No hardcoded credentials: every secret/URL comes from the environment
+#     (see .env.prod.example) and required ones have no insecure fallback —
+#     `docker compose up` fails fast with a clear message if one is missing.
+#   - Migrations run once, in their own short-lived `migrate` service, not
+#     on every API container start.
+#
+# Usage:
+#   cp .env.prod.example .env.prod
+#   # edit .env.prod — fill in real secrets and PUBLIC_ORIGIN
+#   docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER is required}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_DB: ${POSTGRES_DB:-gpu_platform}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks: [backend]
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks: [backend]
+
+  # One-shot: applies pending Prisma migrations, then exits. `api` and
+  # `worker` wait for it to exit 0 before starting — see
+  # `service_completed_successfully` below.
+  migrate:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-gpu_platform}?schema=public
+    # WORKDIR is /repo/apps/api (set by apps/api/Dockerfile's runtime
+    # stage), where this script already lives — no --filter needed.
+    command: ["pnpm", "run", "prisma:deploy"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [backend]
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-gpu_platform}?schema=public
+      REDIS_URL: redis://redis:6379
+      CORS_ORIGINS: "${PUBLIC_ORIGIN:?set PUBLIC_ORIGIN, e.g. https://gpu.example.edu}"
+      JWT_ACCESS_SECRET: "${JWT_ACCESS_SECRET:?set JWT_ACCESS_SECRET — generate with openssl rand -hex 32}"
+      JWT_ACCESS_TTL_MINUTES: ${JWT_ACCESS_TTL_MINUTES:-15}
+      REFRESH_TOKEN_PEPPER: "${REFRESH_TOKEN_PEPPER:?set REFRESH_TOKEN_PEPPER — generate with openssl rand -hex 32}"
+      REFRESH_TOKEN_TTL_DAYS: ${REFRESH_TOKEN_TTL_DAYS:-7}
+      BCRYPT_SALT_ROUNDS: ${BCRYPT_SALT_ROUNDS:-12}
+      COOKIE_DOMAIN: ${COOKIE_DOMAIN:-}
+      TELEMETRY_INGEST_TOKEN: "${TELEMETRY_INGEST_TOKEN:?set TELEMETRY_INGEST_TOKEN — generate with openssl rand -hex 32}"
+      TELEMETRY_ONLINE_THRESHOLD_SECONDS: ${TELEMETRY_ONLINE_THRESHOLD_SECONDS:-30}
+      TELEMETRY_DEGRADED_THRESHOLD_SECONDS: ${TELEMETRY_DEGRADED_THRESHOLD_SECONDS:-90}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    networks: [backend]
+
+  worker:
+    build:
+      context: .
+      dockerfile: apps/worker/Dockerfile
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks: [backend]
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        # Same origin as the page (proxied by `nginx` below), so the SPA
+        # calls e.g. "/api/v1/auth/me" rather than a cross-origin absolute
+        # URL — no CORS involved for real traffic.
+        VITE_API_URL: ""
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    networks: [backend]
+
+  nginx:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    ports:
+      - "${HTTP_PORT:-80}:80"
+    volumes:
+      - ./infra/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      api:
+        condition: service_healthy
+      web:
+        condition: service_healthy
+    networks: [backend]
+
+networks:
+  # Single internal network — nothing but `nginx` publishes a host port, so
+  # this doesn't need a public/private split.
+  backend:
+
+volumes:
+  postgres_data:
+  redis_data:

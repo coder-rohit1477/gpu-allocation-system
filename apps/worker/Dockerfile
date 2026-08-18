@@ -22,4 +22,6 @@ FROM base AS runtime
 ENV NODE_ENV=production
 COPY --from=build /repo /repo
 WORKDIR /repo/apps/worker
+HEALTHCHECK --interval=15s --timeout=5s --start-period=15s --retries=3 \
+  CMD ["node", "healthcheck.mjs"]
 CMD ["node", "dist/index.js"]
