@@ -1,4 +1,5 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
+import { logger } from "../../lib/logger.js";
 
 /**
  * Booking-engine audit actions. Kept separate from admin/audit.ts and
@@ -22,17 +23,29 @@ export interface RecordReservationAuditEventInput {
   metadata?: Record<string, unknown>;
 }
 
+/**
+ * Best-effort, same as admin/audit.ts's recordAdminAuditEvent: this always
+ * follows an already-committed reservation write (including the status
+ * worker's own activate/complete sweep, where a thrown error would also
+ * abort the rest of that sweep pass), so a transient audit-log failure
+ * must never turn an already-successful reservation change into a
+ * client-facing 500 or a stalled sweep.
+ */
 export async function recordReservationAuditEvent(
   prisma: Pick<PrismaClient, "auditLog">,
   input: RecordReservationAuditEventInput,
 ): Promise<void> {
-  await prisma.auditLog.create({
-    data: {
-      actorId: input.actorId,
-      action: input.action,
-      resourceType: "Reservation",
-      resourceId: input.resourceId,
-      metadata: input.metadata as Prisma.InputJsonValue | undefined,
-    },
-  });
+  try {
+    await prisma.auditLog.create({
+      data: {
+        actorId: input.actorId,
+        action: input.action,
+        resourceType: "Reservation",
+        resourceId: input.resourceId,
+        metadata: input.metadata as Prisma.InputJsonValue | undefined,
+      },
+    });
+  } catch (error) {
+    logger.error({ err: error, ...input }, "failed to record reservation audit event");
+  }
 }

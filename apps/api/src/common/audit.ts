@@ -1,4 +1,5 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
+import { logger } from "../lib/logger.js";
 
 /**
  * Admin-module audit actions. Kept separate from auth.ts's AuthAuditAction
@@ -36,17 +37,29 @@ export interface RecordAdminAuditEventInput {
   metadata?: Record<string, unknown>;
 }
 
+/**
+ * Best-effort: the admin write this follows has already committed, so an
+ * audit-log failure (e.g. a transient DB error) must never turn an
+ * already-successful request into a client-facing 500 — that would tell
+ * the caller their write failed when it didn't, inviting a duplicate-
+ * creation retry. Same trade-off as telemetry's publishGpuHealthEvent:
+ * logged and swallowed rather than thrown.
+ */
 export async function recordAdminAuditEvent(
   prisma: Pick<PrismaClient, "auditLog">,
   input: RecordAdminAuditEventInput,
 ): Promise<void> {
-  await prisma.auditLog.create({
-    data: {
-      actorId: input.actorId,
-      action: input.action,
-      resourceType: input.resourceType,
-      resourceId: input.resourceId,
-      metadata: input.metadata as Prisma.InputJsonValue | undefined,
-    },
-  });
+  try {
+    await prisma.auditLog.create({
+      data: {
+        actorId: input.actorId,
+        action: input.action,
+        resourceType: input.resourceType,
+        resourceId: input.resourceId,
+        metadata: input.metadata as Prisma.InputJsonValue | undefined,
+      },
+    });
+  } catch (error) {
+    logger.error({ err: error, ...input }, "failed to record admin audit event");
+  }
 }

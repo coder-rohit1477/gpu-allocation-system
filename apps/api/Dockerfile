@@ -25,8 +25,9 @@ RUN pnpm --filter "@gpu/api..." run build
 
 FROM base AS runtime
 ENV NODE_ENV=production
-COPY --from=build /repo /repo
+COPY --from=build --chown=node:node /repo /repo
 WORKDIR /repo/apps/api
+USER node
 EXPOSE 4000
 HEALTHCHECK --interval=10s --timeout=5s --start-period=15s --retries=3 \
   CMD ["node", "healthcheck.mjs"]

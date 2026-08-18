@@ -69,6 +69,21 @@ export function createApp(): Express {
   // Express 4 error middleware must take exactly four parameters to be
   // recognized as an error handler, even though `next` is unused here.
   app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
+    // express.json() throws a SyntaxError with `status: 400` for a
+    // malformed request body — it never reaches controllerHandler's
+    // AppError/ZodError mapping since parsing fails before any route runs.
+    // Without this check that client input error was reported as a 500.
+    const status =
+      typeof err === "object" && err !== null && "status" in err && typeof err.status === "number"
+        ? err.status
+        : undefined;
+
+    if (status !== undefined && status >= 400 && status < 500) {
+      logger.warn({ err }, "client error");
+      res.status(status).json({ ok: false, error: { code: "BAD_REQUEST", message: "Invalid request" } });
+      return;
+    }
+
     logger.error({ err }, "unhandled error");
     res
       .status(500)
