@@ -16,6 +16,8 @@ import gpuNodeHealthRouter from "./modules/telemetry/gpuNodeHealth.routes.js";
 import reservationRouter from "./modules/reservation/reservation.routes.js";
 import gpuNodeAvailabilityRouter from "./modules/reservation/gpuNodeAvailability.routes.js";
 import laboratoryCalendarRouter from "./modules/reservation/laboratoryCalendar.routes.js";
+import facultyRouter from "./modules/faculty/faculty.routes.js";
+import reservationBulkRouter from "./modules/faculty/reservationBulk.routes.js";
 
 export function createApp(): Express {
   const app = express();
@@ -45,7 +47,13 @@ export function createApp(): Express {
   app.use("/api/v1/gpu-nodes", gpuNodeRouter);
   app.use("/api/v1/users", userRouter);
   app.use("/api/v1/telemetry", telemetryRouter);
+  // Must be mounted before reservationRouter for the same reason as the
+  // gpu-nodes pair above — not required for a path collision here (no
+  // collision is possible; see reservationBulk.routes.ts), just grouping
+  // consistency with the rest of this file.
+  app.use("/api/v1/reservations", reservationBulkRouter);
   app.use("/api/v1/reservations", reservationRouter);
+  app.use("/api/v1/faculty", facultyRouter);
 
   app.use((_req, res) => {
     res.status(404).json({ ok: false, error: { code: "NOT_FOUND", message: "Route not found" } });
