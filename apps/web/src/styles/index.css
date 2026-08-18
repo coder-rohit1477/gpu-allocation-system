@@ -709,6 +709,32 @@ textarea {
   font-size: 0.85rem;
 }
 
+/* Faculty bulk approvals — multi-select */
+
+.bulk-actions-bar {
+  justify-content: space-between;
+  align-items: center;
+}
+.approval-select-all {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+.approval-row__select {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  flex: 1;
+  min-width: 0;
+}
+.approval-row__select input[type="checkbox"] {
+  margin-top: 3px;
+  flex-shrink: 0;
+}
+
 /* Weekly Calendar */
 
 .week-nav {

@@ -1,11 +1,16 @@
 import type {
   ApiResult,
+  BulkApproveReservationsInput,
+  BulkRejectReservationsInput,
   Course,
   CourseAnalyticsRow,
   CreateReservationInput,
   DailyReportQuery,
   Department,
   DepartmentAnalyticsRow,
+  FacultyCourseSummary,
+  FacultyDashboard,
+  FacultyWeeklyScheduleQuery,
   GpuNode,
   GpuNodeAvailability,
   GpuNodeAvailabilityQuery,
@@ -20,16 +25,19 @@ import type {
   ListGpuNodesQuery,
   ListLaboratoriesQuery,
   ListMyReservationsQuery,
+  ListPendingReservationsQuery,
   LoginInput,
   MonthlyReportQuery,
   Organization,
   PaginatedResult,
+  PaginationQuery,
   PublicUser,
   Report,
   Reservation,
   StudentsAnalytics,
   TopCoursesQuery,
   UniversityAnalytics,
+  WeeklyLabSchedule,
   WeeklyReportQuery,
 } from "@gpu/types";
 
@@ -174,6 +182,25 @@ export class GpuPlatformClient {
       this.request("/api/v1/reservations", { method: "POST", body: JSON.stringify(input) }),
     cancel: (id: string): Promise<Reservation> =>
       this.request(`/api/v1/reservations/${id}`, { method: "DELETE" }),
+    // Faculty-only queue/actions below — same "/api/v1/reservations" prefix
+    // as the booking-engine calls above (see reservation.routes.ts and
+    // reservationBulk.routes.ts on the API side for why they share it).
+    pending: (query?: ListPendingReservationsQuery): Promise<PaginatedResult<Reservation>> =>
+      this.request("/api/v1/reservations/pending", { query }),
+    bulkApprove: (input: BulkApproveReservationsInput): Promise<{ approved: Reservation[] }> =>
+      this.request("/api/v1/reservations/bulk-approve", { method: "PATCH", body: JSON.stringify(input) }),
+    bulkReject: (input: BulkRejectReservationsInput): Promise<{ rejected: Reservation[] }> =>
+      this.request("/api/v1/reservations/bulk-reject", { method: "PATCH", body: JSON.stringify(input) }),
+  };
+
+  /** Faculty workflow — GET /api/v1/faculty/*, self-scoped to the caller's
+   * own department, no id params needed (see docs/api.md). */
+  readonly faculty = {
+    dashboard: (): Promise<FacultyDashboard> => this.request("/api/v1/faculty/dashboard"),
+    courses: (query?: PaginationQuery): Promise<PaginatedResult<FacultyCourseSummary>> =>
+      this.request("/api/v1/faculty/courses", { query }),
+    labSchedule: (query?: FacultyWeeklyScheduleQuery): Promise<WeeklyLabSchedule> =>
+      this.request("/api/v1/faculty/labs/schedule", { query }),
   };
 
   readonly analytics = {

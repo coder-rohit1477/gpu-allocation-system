@@ -9,7 +9,7 @@ export type AuthStatus = "loading" | "authenticated" | "unauthenticated";
 export interface AuthContextValue {
   user: PublicUser | null;
   status: AuthStatus;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<{ user: PublicUser }>;
   logout: () => Promise<void>;
 }
 
@@ -39,9 +39,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = useCallback(async (email: string, password: string) => {
-    const { user: profile } = await apiClient.auth.login({ email, password });
-    setUser(profile);
+    const result = await apiClient.auth.login({ email, password });
+    setUser(result.user);
     setStatus("authenticated");
+    return result;
   }, []);
 
   const logout = useCallback(async () => {

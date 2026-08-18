@@ -5,9 +5,10 @@ import type { Location } from "react-router-dom";
 import { Button, Card } from "@gpu/ui";
 import { useAuth } from "../auth/AuthContext.js";
 import { errorMessage } from "../lib/errors.js";
+import { defaultRouteForRole } from "../lib/roles.js";
 
 export function LoginPage() {
-  const { status, login } = useAuth();
+  const { status, user, login } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [email, setEmail] = useState("");
@@ -15,9 +16,9 @@ export function LoginPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  if (status === "authenticated") {
+  if (status === "authenticated" && user) {
     const from = (location.state as { from?: Location } | null)?.from;
-    return <Navigate to={from?.pathname ?? "/dashboard"} replace />;
+    return <Navigate to={from?.pathname ?? defaultRouteForRole(user.role)} replace />;
   }
 
   async function handleSubmit(event: FormEvent) {
@@ -25,8 +26,8 @@ export function LoginPage() {
     setSubmitting(true);
     setError(null);
     try {
-      await login(email, password);
-      navigate("/dashboard", { replace: true });
+      const { user: profile } = await login(email, password);
+      navigate(defaultRouteForRole(profile.role), { replace: true });
     } catch (err) {
       setError(errorMessage(err));
     } finally {

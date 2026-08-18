@@ -359,3 +359,74 @@ export interface MonthlyReportQuery {
   month?: string;
   months?: number;
 }
+
+// ---------------------------------------------------------------------------
+// Faculty workflow (Phase 7)
+// ---------------------------------------------------------------------------
+
+/** Mirrors apps/api's priorityQueue.ts: derived from whether courseId is set,
+ * not a stored column — a reservation tied to a course (scheduled coursework)
+ * outranks a standalone research/personal booking in the approval queue. */
+export type ReservationPriority = "COURSEWORK" | "RESEARCH";
+
+export interface FacultyReservationSummary {
+  id: string;
+  userId: string;
+  courseId: string | null;
+  gpuNodeId: string;
+  hostname: string;
+  laboratoryId: string;
+  laboratoryName: string;
+  status: ReservationStatus;
+  startTime: string;
+  endTime: string;
+  purpose: string;
+  priority: ReservationPriority;
+}
+
+export interface FacultyDashboard {
+  pendingApprovals: { total: number; items: FacultyReservationSummary[] };
+  todaysSessions: FacultyReservationSummary[];
+  activeGpuUsage: {
+    activeReservations: number;
+    totalNodes: number;
+    activeNodes: number;
+    utilizationPercent: number;
+  };
+  upcomingReservations: FacultyReservationSummary[];
+}
+
+export interface FacultyCourseSummary {
+  id: string;
+  courseCode: string;
+  courseName: string;
+  semester: string;
+  pendingReservations: number;
+  approvedReservations: number;
+  activeReservations: number;
+}
+
+export interface WeeklyLabSchedule {
+  weekStart: string;
+  weekEnd: string;
+  laboratories: {
+    laboratoryId: string;
+    laboratoryName: string;
+    reservations: FacultyReservationSummary[];
+  }[];
+}
+
+export interface FacultyWeeklyScheduleQuery {
+  weekOf?: string;
+}
+
+export type ListPendingReservationsQuery = PaginationQuery;
+
+export interface BulkApproveReservationsInput {
+  reservationIds: string[];
+}
+
+export interface BulkRejectReservationsInput {
+  reservationIds: string[];
+  reason?: string;
+}
