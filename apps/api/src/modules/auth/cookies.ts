@@ -1,5 +1,5 @@
 import type { CookieOptions, Response } from "express";
-import { env, isProduction } from "../../config/env.js";
+import { env } from "../../config/env.js";
 import { accessTokenTtlSeconds, refreshTokenTtlMs } from "./tokens.js";
 
 export const ACCESS_TOKEN_COOKIE = "access_token";
@@ -12,7 +12,7 @@ export const AUTH_COOKIE_PATH = "/api/v1/auth";
 function baseCookieOptions(): CookieOptions {
   return {
     httpOnly: true,
-    secure: isProduction,
+    secure: env.auth.secureCookies,
     sameSite: "lax",
     domain: env.auth.cookieDomain,
   };

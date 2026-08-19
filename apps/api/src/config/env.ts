@@ -8,8 +8,11 @@ function required(name: string, fallback?: string): string {
   return value;
 }
 
+const nodeEnv = process.env.NODE_ENV ?? "development";
+const isProductionNodeEnv = nodeEnv === "production";
+
 export const env = {
-  nodeEnv: process.env.NODE_ENV ?? "development",
+  nodeEnv,
   port: Number(process.env.PORT ?? 4000),
   databaseUrl: required("DATABASE_URL"),
   redisUrl: required("REDIS_URL"),
@@ -26,6 +29,24 @@ export const env = {
     refreshTokenTtlDays: Number(process.env.REFRESH_TOKEN_TTL_DAYS ?? 7),
     bcryptSaltRounds: Number(process.env.BCRYPT_SALT_ROUNDS ?? 12),
     cookieDomain: process.env.COOKIE_DOMAIN,
+    // The `Secure` cookie attribute requires HTTPS — Chromium treats
+    // `localhost` as a secure context and sends/stores Secure cookies over
+    // plain HTTP there anyway, but Safari does not, so it silently drops
+    // the cookie and every authenticated request after login 401s. Defaults
+    // to NODE_ENV=production (unchanged behavior for a real TLS-terminated
+    // deploy); set COOKIE_SECURE=false to run this same production Docker
+    // topology locally over plain HTTP (e.g. against http://localhost with
+    // no TLS-terminating proxy in front). Decoupled from `isProduction`
+    // itself (below) since that also governs unrelated things like log
+    // level, which should stay tied to NODE_ENV regardless of transport.
+    // "" counts as unset too, not just undefined — Docker Compose's
+    // `${COOKIE_SECURE:-}` interpolation always injects the key with an
+    // empty string when the host-side .env doesn't set it, rather than
+    // omitting it, so `undefined`-only would silently disable Secure
+    // cookies for every real production deploy that never touches this var.
+    secureCookies: !process.env.COOKIE_SECURE
+      ? isProductionNodeEnv
+      : process.env.COOKIE_SECURE === "true",
   },
 
   telemetry: {
@@ -39,4 +60,4 @@ export const env = {
   },
 };
 
-export const isProduction = env.nodeEnv === "production";
+export const isProduction = isProductionNodeEnv;

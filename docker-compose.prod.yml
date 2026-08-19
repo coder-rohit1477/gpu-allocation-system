@@ -80,6 +80,10 @@ services:
       REFRESH_TOKEN_TTL_DAYS: ${REFRESH_TOKEN_TTL_DAYS:-7}
       BCRYPT_SALT_ROUNDS: ${BCRYPT_SALT_ROUNDS:-12}
       COOKIE_DOMAIN: ${COOKIE_DOMAIN:-}
+      # Leave unset for a real deploy (defaults to Secure=true, matching
+      # NODE_ENV=production above); set to "false" only to run this same
+      # topology locally over plain HTTP — see .env.prod.example.
+      COOKIE_SECURE: ${COOKIE_SECURE:-}
       TELEMETRY_INGEST_TOKEN: "${TELEMETRY_INGEST_TOKEN:?set TELEMETRY_INGEST_TOKEN — generate with openssl rand -hex 32}"
       TELEMETRY_ONLINE_THRESHOLD_SECONDS: ${TELEMETRY_ONLINE_THRESHOLD_SECONDS:-30}
       TELEMETRY_DEGRADED_THRESHOLD_SECONDS: ${TELEMETRY_DEGRADED_THRESHOLD_SECONDS:-90}
