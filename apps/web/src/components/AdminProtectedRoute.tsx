@@ -1,8 +1,9 @@
 import { Navigate, useLocation } from "react-router-dom";
 import type { ReactNode } from "react";
 import type { UserRole } from "@gpu/types";
-import { Card, Skeleton } from "@gpu/ui";
+import { Skeleton } from "@gpu/ui";
 import { useAuth } from "../auth/AuthContext.js";
+import { defaultRouteForRole } from "../lib/roles.js";
 
 // Mirrors ProtectedRoute.tsx's shape exactly, but for the separate admin
 // analytics area (Phase 9) rather than the student portal (Phase 8) — a
@@ -26,19 +27,11 @@ export function AdminProtectedRoute({ children }: { children: ReactNode }) {
     return <Navigate to="/login" replace state={{ from: location }} />;
   }
 
+  // A signed-in non-admin-tier user (e.g. FACULTY manually opening
+  // /admin/analytics) is redirected to their own portal rather than
+  // stranded here with a "wrong role" message.
   if (user && !ADMIN_ROLES.includes(user.role)) {
-    return (
-      <div className="centered-page">
-        <Card>
-          <h1>Admin Analytics</h1>
-          <p>
-            This area is built for administrator roles (<strong>SUPER_ADMIN</strong>,{" "}
-            <strong>DEPARTMENT_ADMIN</strong>, <strong>LAB_ADMIN</strong>). You&apos;re signed in as{" "}
-            <strong>{user.role}</strong>, which doesn&apos;t have access to these pages.
-          </p>
-        </Card>
-      </div>
-    );
+    return <Navigate to={defaultRouteForRole(user.role)} replace />;
   }
 
   return <>{children}</>;

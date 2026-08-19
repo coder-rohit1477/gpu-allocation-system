@@ -1,12 +1,15 @@
 import { Navigate, useLocation } from "react-router-dom";
 import type { ReactNode } from "react";
-import { Card, Skeleton } from "@gpu/ui";
+import { Skeleton } from "@gpu/ui";
 import { useAuth } from "../auth/AuthContext.js";
+import { defaultRouteForRole } from "../lib/roles.js";
 
 /** Gates the student portal behind a session, and behind the STUDENT role
  * specifically — this portal's pages assume a student's own data (GET
- * /reservations/me, etc.), so any other role is shown a plain explanation
- * rather than a confusing empty/broken dashboard. */
+ * /reservations/me, etc.). A signed-in non-STUDENT is redirected straight
+ * to their own portal (see lib/roles.ts) rather than stranded on this URL
+ * with a "wrong role" message — manually opening a page outside your
+ * portal should behave the same as "/" or the post-login redirect. */
 export function ProtectedRoute({ children }: { children: ReactNode }) {
   const { status, user } = useAuth();
   const location = useLocation();
@@ -24,17 +27,7 @@ export function ProtectedRoute({ children }: { children: ReactNode }) {
   }
 
   if (user && user.role !== "STUDENT") {
-    return (
-      <div className="centered-page">
-        <Card>
-          <h1>Student Portal</h1>
-          <p>
-            This portal is built for the <strong>STUDENT</strong> role. You&apos;re signed in as{" "}
-            <strong>{user.role}</strong>, which doesn&apos;t have access to these pages.
-          </p>
-        </Card>
-      </div>
-    );
+    return <Navigate to={defaultRouteForRole(user.role)} replace />;
   }
 
   return <>{children}</>;

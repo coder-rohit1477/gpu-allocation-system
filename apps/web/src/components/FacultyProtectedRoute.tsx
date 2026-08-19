@@ -1,7 +1,8 @@
 import { Navigate, useLocation } from "react-router-dom";
 import type { ReactNode } from "react";
-import { Card, Skeleton } from "@gpu/ui";
+import { Skeleton } from "@gpu/ui";
 import { useAuth } from "../auth/AuthContext.js";
+import { defaultRouteForRole } from "../lib/roles.js";
 
 // Mirrors ProtectedRoute.tsx/AdminProtectedRoute.tsx's shape exactly, but
 // for the faculty portal — a new, independent component rather than
@@ -25,18 +26,11 @@ export function FacultyProtectedRoute({ children }: { children: ReactNode }) {
     return <Navigate to="/login" replace state={{ from: location }} />;
   }
 
+  // A signed-in non-FACULTY user (e.g. SUPER_ADMIN manually opening
+  // /faculty/dashboard) is redirected to their own portal rather than
+  // stranded here with a "wrong role" message.
   if (user && user.role !== "FACULTY") {
-    return (
-      <div className="centered-page">
-        <Card>
-          <h1>Faculty Portal</h1>
-          <p>
-            This portal is built for the <strong>FACULTY</strong> role. You&apos;re signed in as{" "}
-            <strong>{user.role}</strong>, which doesn&apos;t have access to these pages.
-          </p>
-        </Card>
-      </div>
-    );
+    return <Navigate to={defaultRouteForRole(user.role)} replace />;
   }
 
   return <>{children}</>;
