@@ -13,13 +13,51 @@
 #   docker compose -f docker-compose.prod.yml -f docker-compose.demo.yml \
 #     --env-file .env.prod up -d --build
 #
-# Then, once the stack is healthy, generate one pending reservation to
-# demo the faculty-approval flow (see README):
+# University structure/users/GPU inventory are seeded automatically by the
+# `demo-seed` service below (runs inside the `backend` network, against the
+# same containerized Postgres `api` uses — see its comment). Once the stack
+# is healthy, generate one pending reservation to demo the faculty-approval
+# flow (see README):
 #
-#   pnpm --filter @gpu/api run prisma:seed        # if not already seeded
 #   pnpm --filter @gpu/api run prisma:demo-seed
 
 services:
+  # One-shot: populates university structure/users/GPU inventory (upserts,
+  # safe to rerun) so the simulator's synthetic hostnames
+  # (cse-gpu-node-01.muj.local, etc.) have matching GpuNode rows to attach
+  # telemetry to. Deliberately runs `prisma:seed` in its own container on
+  # the `backend` network, against the same DATABASE_URL the containerized
+  # `api`/`postgres` use — never a host shell's local DATABASE_URL, which
+  # can't even reach this Postgres (it publishes no host port). Reuses
+  # docker-compose.prod.yml's `migrate` service/image rather than
+  # redefining it.
+  #
+  # Needs the same full environment as `api`, not just DATABASE_URL like
+  # `migrate`: prisma/seed.ts imports src/modules/auth/password.ts, which
+  # pulls in src/config/env.ts and its full required-var contract
+  # (REDIS_URL, JWT_ACCESS_SECRET, REFRESH_TOKEN_PEPPER,
+  # TELEMETRY_INGEST_TOKEN) even though seeding itself never uses Redis or
+  # issues a JWT.
+  demo-seed:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-gpu_platform}?schema=public
+      REDIS_URL: redis://redis:6379
+      CORS_ORIGINS: "${PUBLIC_ORIGIN:?set PUBLIC_ORIGIN, e.g. https://gpu.example.edu}"
+      JWT_ACCESS_SECRET: "${JWT_ACCESS_SECRET:?set JWT_ACCESS_SECRET — generate with openssl rand -hex 32}"
+      REFRESH_TOKEN_PEPPER: "${REFRESH_TOKEN_PEPPER:?set REFRESH_TOKEN_PEPPER — generate with openssl rand -hex 32}"
+      TELEMETRY_INGEST_TOKEN: "${TELEMETRY_INGEST_TOKEN:?set TELEMETRY_INGEST_TOKEN — generate with openssl rand -hex 32}"
+    command: ["pnpm", "run", "prisma:seed"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    networks: [backend]
+
   demo-telemetry-simulator:
     build:
       context: .
@@ -44,6 +82,12 @@ services:
       # fixed delay.
       api:
         condition: service_healthy
+      # Without this, the simulator starts posting telemetry for hostnames
+      # that don't have GpuNode rows yet (`api` being healthy says nothing
+      # about seed data existing), every send 404s, its own health file
+      # never gets written, and the container is reported unhealthy.
+      demo-seed:
+        condition: service_completed_successfully
     networks: [backend]
 
 networks:

@@ -201,13 +201,13 @@ a loop, so nodes go `ONLINE` through the actual heartbeat-recency logic —
 nothing is hardcoded or bypassed.
 
 ```bash
-# Bring up the full demo stack (production topology + the simulator)
+# Bring up the full demo stack (production topology + the simulator).
+# University structure/users/GPU inventory are seeded automatically by the
+# one-shot `demo-seed` service (runs inside the compose network, before
+# the simulator starts) — no separate seed step needed.
 cp .env.prod.example .env.prod   # fill in real secrets first
 docker compose -f docker-compose.prod.yml -f docker-compose.demo.yml \
   --env-file .env.prod up -d --build
-
-# Populate university structure/users/GPU inventory (if not already seeded)
-pnpm --filter @gpu/api run prisma:seed
 
 # Create one pending reservation + bring its GPU node online, so there's
 # something for a faculty account to approve immediately — idempotent,
