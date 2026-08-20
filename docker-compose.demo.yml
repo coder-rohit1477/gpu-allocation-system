@@ -1,0 +1,53 @@
+# DEVELOPMENT/DEMO ONLY — adds the synthetic GPU node-agent telemetry
+# simulator on top of the production topology, for running a local
+# demonstration without physical GPU hardware. This is an *override* file,
+# not a standalone stack: it only defines the one new service and expects
+# to be composed together with docker-compose.prod.yml, which is left
+# completely unmodified (the simulator never runs automatically as part of
+# a real production deploy).
+#
+# Usage (from the repo root, with .env.prod already filled in — see
+# docker-compose.prod.yml's header and README's "Demo environment"
+# section):
+#
+#   docker compose -f docker-compose.prod.yml -f docker-compose.demo.yml \
+#     --env-file .env.prod up -d --build
+#
+# Then, once the stack is healthy, generate one pending reservation to
+# demo the faculty-approval flow (see README):
+#
+#   pnpm --filter @gpu/api run prisma:seed        # if not already seeded
+#   pnpm --filter @gpu/api run prisma:demo-seed
+
+services:
+  demo-telemetry-simulator:
+    build:
+      context: .
+      dockerfile: apps/demo-telemetry-simulator/Dockerfile
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      # Same shared secret the real API's telemetry ingestion endpoints
+      # check — this simulator authenticates exactly like a physical
+      # node-agent would, no bypass.
+      TELEMETRY_INGEST_TOKEN: "${TELEMETRY_INGEST_TOKEN:?set TELEMETRY_INGEST_TOKEN in .env.prod — must match the api service's value}"
+      # Internal service DNS name from docker-compose.prod.yml's `backend`
+      # network — never a published host port.
+      DEMO_SIMULATOR_API_BASE_URL: http://api:4000
+      DEMO_SIMULATOR_HEARTBEAT_INTERVAL_MS: ${DEMO_SIMULATOR_HEARTBEAT_INTERVAL_MS:-10000}
+      DEMO_SIMULATOR_DEPARTMENTS: ${DEMO_SIMULATOR_DEPARTMENTS:-cse,ai,ds}
+      DEMO_SIMULATOR_NODES_PER_DEPARTMENT: ${DEMO_SIMULATOR_NODES_PER_DEPARTMENT:-4}
+    depends_on:
+      # Reuses the `api` service already defined by docker-compose.prod.yml
+      # — waits for its real HEALTHCHECK (see apps/api/Dockerfile), not a
+      # fixed delay.
+      api:
+        condition: service_healthy
+    networks: [backend]
+
+networks:
+  # Joins the same network docker-compose.prod.yml declares — Compose
+  # merges same-named networks across -f files, so this is not a second,
+  # disconnected network.
+  backend:

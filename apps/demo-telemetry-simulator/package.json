@@ -1,0 +1,24 @@
+{
+  "name": "@gpu/demo-telemetry-simulator",
+  "version": "0.1.0",
+  "private": true,
+  "description": "DEV/DEMO-ONLY GPU node-agent simulator — sends heartbeat/metrics telemetry to apps/api's real ingestion endpoints so seeded GPU nodes show ONLINE without physical hardware. Never part of the production topology.",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc -b",
+    "start": "node dist/index.js",
+    "clean": "rm -rf dist tsconfig.tsbuildinfo",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.7",
+    "pino": "^10.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3"
+  }
+}

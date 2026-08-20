@@ -5,6 +5,7 @@
     { "path": "packages/sdk" },
     { "path": "apps/api" },
     { "path": "apps/worker" },
-    { "path": "apps/web" }
+    { "path": "apps/web" },
+    { "path": "apps/demo-telemetry-simulator" }
   ]
 }

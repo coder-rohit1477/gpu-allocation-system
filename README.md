@@ -71,6 +71,9 @@ apps/
   api/      Express API — one module per domain, see apps/api/src/modules/*
   web/      React SPA — student portal + admin analytics area
   worker/   BullMQ background worker (foundation stub)
+  demo-telemetry-simulator/  DEV/DEMO ONLY synthetic GPU node-agent — see
+                              "Demo environment" below, never deployed to
+                              production
 packages/
   types/    Shared TypeScript types/contracts (API request/response shapes)
   sdk/      Typed fetch client used by apps/web, built on packages/types
@@ -171,6 +174,7 @@ Two Compose files, two different jobs:
 |---|---|
 | `docker-compose.yml` | Local dev convenience — Postgres/Redis (+ optionally the built app containers) with host ports exposed directly, hardcoded dev-only credentials |
 | `docker-compose.prod.yml` | Production topology — single nginx ingress, no direct port exposure for Postgres/Redis/API/web, every secret from the environment with no insecure default. See [`docs/deployment.md`](./docs/deployment.md) for the full runbook. |
+| `docker-compose.demo.yml` | DEV/DEMO ONLY override — adds a synthetic GPU telemetry simulator on top of `docker-compose.prod.yml` so a local demo has `ONLINE` GPUs without physical hardware. Never used standalone, never part of a production deploy. See [Demo environment](#demo-environment) below. |
 
 Build and run the whole stack (any variant):
 
@@ -182,6 +186,39 @@ docker compose up -d --build
 cp .env.prod.example .env.prod   # fill in real secrets first
 docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
 ```
+
+### Demo environment
+
+There's no physical GPU hardware in a local/demo environment, so every
+seeded GPU node starts `OFFLINE` and there's nothing for a student to book
+or a faculty member to approve. `docker-compose.demo.yml` — a DEV/DEMO-ONLY
+override, never part of the production topology — adds
+`demo-telemetry-simulator`, a small standalone service
+(`apps/demo-telemetry-simulator`) that calls the *real* telemetry
+ingestion endpoints (`POST /telemetry/heartbeat` and `/metrics`, same
+`TELEMETRY_INGEST_TOKEN` shared secret a physical node-agent would use) on
+a loop, so nodes go `ONLINE` through the actual heartbeat-recency logic —
+nothing is hardcoded or bypassed.
+
+```bash
+# Bring up the full demo stack (production topology + the simulator)
+cp .env.prod.example .env.prod   # fill in real secrets first
+docker compose -f docker-compose.prod.yml -f docker-compose.demo.yml \
+  --env-file .env.prod up -d --build
+
+# Populate university structure/users/GPU inventory (if not already seeded)
+pnpm --filter @gpu/api run prisma:seed
+
+# Create one pending reservation + bring its GPU node online, so there's
+# something for a faculty account to approve immediately — idempotent,
+# safe to rerun
+pnpm --filter @gpu/api run prisma:demo-seed
+```
+
+Every 12 seeded GPU nodes go `ONLINE` within one heartbeat interval
+(~10s). Log in as `muj-stu-0001@muj.manipal.edu` (student) or
+`muj-fac-0001@muj.manipal.edu` (faculty) — password `ChangeMe123!` for
+every seeded account — to walk the booking → approval flow end to end.
 
 ## Environment variables
 
