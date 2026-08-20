@@ -145,5 +145,17 @@ networks:
   backend:
 
 volumes:
+  # Explicitly named so this never collides with docker-compose.yml's
+  # (dev stack) same-named `postgres_data` volume. Both files default to the
+  # same Compose project name (the directory basename) when run from this
+  # directory, so without an explicit name they resolve to the identical
+  # Docker volume — silently reusing whichever stack initialized it first.
+  # Since POSTGRES_USER/PASSWORD are only honored by Postgres on first init
+  # of an empty data dir, a stack started against that already-initialized
+  # volume with different credentials gets a P1000 auth failure: the app
+  # containers build DATABASE_URL from the *current* env file, but the
+  # cluster on disk still only has the role from whichever env file
+  # initialized it.
   postgres_data:
+    name: gpu_prod_postgres_data
   redis_data:
